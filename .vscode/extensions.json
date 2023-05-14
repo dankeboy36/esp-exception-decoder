@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "amodio.tsl-problem-matcher",
+    "streetsidesoftware.code-spell-checker"
+  ]
+}

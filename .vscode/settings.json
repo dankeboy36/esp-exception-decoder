@@ -1,0 +1,15 @@
+{
+  "files.exclude": {
+    "out": false,
+    "dist": false
+  },
+  "search.exclude": {
+    "out": true,
+    "dist": true
+  },
+  "typescript.tsc.autoDetect": "off",
+  "typescript.tsdk": "./node_modules/typescript/lib",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  }
+}

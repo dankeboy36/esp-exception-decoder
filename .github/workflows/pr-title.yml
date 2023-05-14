@@ -1,0 +1,19 @@
+# Taken from stephenh/ts-proto. Thank you!
+# https://github.com/stephenh/ts-proto/blob/1f73bad91fe33c497d5168b9f0847ad596ffec39/.github/workflows/pr-title.yml
+name: PR Title
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - edited
+      - synchronize
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v3.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,98 @@
+name: Build
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: test (${{ matrix.os }}, node-${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        node: [18.x]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.config.node }}
+      - name: Use Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Restore CLI Binaries
+        uses: actions/cache/restore@v3
+        with:
+          path: test-resources/cli-releases
+          key: ${{ runner.os }}-cli-context-${{ hashFiles('src/test/cliContext.json') }}
+      - name: Restore `directories.data` folder (CLI)
+        uses: actions/cache/restore@v3
+        with:
+          path: test-resources/envs/cli
+          key: ${{ runner.os }}-cli-env-${{ hashFiles('src/test/envs.cli.json') }}
+      - name: Restore `directories.data` folder (Git)
+        uses: actions/cache/restore@v3
+        with:
+          path: test-resources/envs/git
+          key: ${{ runner.os }}-git-env-${{ hashFiles('src/test/envs.git.json') }}
+      - name: Install Dependencies
+        run: npm ci
+      - name: Check Format
+        run: npm run format && git diff --exit-code
+      - name: Test
+        uses: coactions/setup-xvfb@v1
+        with:
+          run: npm run test-all
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Store CLI Binaries
+        uses: actions/cache/save@v3
+        with:
+          path: test-resources/cli-releases
+          key: ${{ runner.os }}-cli-context-${{ hashFiles('src/test/cliContext.json') }}
+      - name: Store `directories.data` folder (CLI)
+        uses: actions/cache/save@v3
+        with:
+          path: test-resources/envs/cli
+          key: ${{ runner.os }}-cli-env-${{ hashFiles('src/test/envs.cli.json') }}
+      - name: Store `directories.data` folder (Git)
+        uses: actions/cache/save@v3
+        with:
+          path: test-resources/envs/git
+          key: ${{ runner.os }}-git-env-${{ hashFiles('src/test/envs.git.json') }}
+
+  release:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - name: Use Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 18.x
+      - name: Install Dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Release
+        id: release
+        run: npm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    outputs:
+      release_version: ${{ steps.release.outputs.release_version }}
