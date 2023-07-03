@@ -3,11 +3,13 @@
 
 /** @type {import('semantic-release').Options} */
 module.exports = {
+  tagFormat: '${version}',
   branches: ['main'],
   plugins: [
     '@semantic-release/commit-analyzer',
     '@semantic-release/release-notes-generator',
     '@semantic-release/changelog',
+    '@semantic-release/npm',
     [
       '@semantic-release/github',
       {
@@ -22,6 +24,7 @@ module.exports = {
     [
       'semantic-release-vsce',
       {
+        packageVsix: true, // It's default to true when OVSX_PAT env is set
         publish: false, // Do not publish to VS Code Marketplace, but to Open VSX
       },
     ],
@@ -29,7 +32,7 @@ module.exports = {
       '@semantic-release/exec',
       {
         publishCmd:
-          'echo "::set-output name=release_version::${nextRelease.version}"',
+          'echo "release_version=${nextRelease.version}" >> $GITHUB_OUTPUT',
       },
     ],
   ],
