@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/dankeboy36/esp-exception-decoder/compare/v1.0.0...1.0.1) (2023-07-03)
+
+
+### Bug Fixes
+
+* **release:** undesired release behavior ([#4](https://github.com/dankeboy36/esp-exception-decoder/issues/4)) ([b581dc7](https://github.com/dankeboy36/esp-exception-decoder/commit/b581dc7d23c126ab4e551e23b765dffb578739d4))
+
 # 1.0.0 (2023-07-03)
 
 

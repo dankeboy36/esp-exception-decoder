@@ -2,7 +2,7 @@
   "name": "esp-exception-decoder",
   "displayName": "ESP8266/ESP32 Exception Decoder Extension for the Arduino IDE",
   "description": "Arduino IDE extension lets you get a more meaningful explanation of the stack traces and backtraces you get on ESP8266/ESP32",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "private": true,
   "engines": {
     "vscode": "^1.78.0"
