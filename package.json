@@ -3,6 +3,7 @@
   "displayName": "ESP8266/ESP32 Exception Decoder Extension for the Arduino IDE",
   "description": "Arduino IDE extension lets you get a more meaningful explanation of the stack traces and backtraces you get on ESP8266/ESP32",
   "version": "0.1.0",
+  "private": true,
   "engines": {
     "vscode": "^1.78.0"
   },
@@ -62,6 +63,7 @@
     "@semantic-release/exec": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^9.0.3",
+    "@semantic-release/npm": "^10.0.4",
     "@semantic-release/release-notes-generator": "^11.0.3",
     "@types/debug": "^4.1.8",
     "@types/glob": "^8.1.0",
