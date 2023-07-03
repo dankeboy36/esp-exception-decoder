@@ -7,6 +7,7 @@
     "vscode": "^1.78.0"
   },
   "author": "dankeboy36",
+  "publisher": "dankeboy36",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/dankeboy36/esp-exception-decoder/issues"
