@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/dankeboy36/esp-exception-decoder/compare/1.0.1...1.0.2) (2023-07-12)
+
+
+### Bug Fixes
+
+* **release:** OVSX publish ([#5](https://github.com/dankeboy36/esp-exception-decoder/issues/5)) ([aeb47cc](https://github.com/dankeboy36/esp-exception-decoder/commit/aeb47cc0cdeba60f983782fcabffe8e4e105a4ef))
+
 ## [1.0.1](https://github.com/dankeboy36/esp-exception-decoder/compare/v1.0.0...1.0.1) (2023-07-03)
 
 
