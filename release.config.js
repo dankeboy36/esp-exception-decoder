@@ -24,8 +24,8 @@ module.exports = {
     [
       'semantic-release-vsce',
       {
-        packageVsix: true, // It's default to true when OVSX_PAT env is set
-        publish: false, // Do not publish to VS Code Marketplace, but to Open VSX
+        packageVsix: true,
+        publish: true,
       },
     ],
     [
