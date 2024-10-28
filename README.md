@@ -14,7 +14,7 @@
 
 - Download the latest extension from the GitHub [release page](https://github.com/dankeboy36/esp-exception-decoder/releases/latest). The asset filename is `esp-exception-decoder-${VERSION}.vsix`, where `${VERSION}` is the latest version.
 - When the Arduino IDE is not running, copy the downloaded extension into the folder named `plugins` folder under Arduino IDE's configuration folder. If the `plugins` folder does not exist, create it.
-  - On Windows, it's under `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username.
+  - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (which is typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
   - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
     > ℹ️ If you get stuck, follow the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation of the Arduino IDE _3rd party themes_. The procedure is the same.
 
