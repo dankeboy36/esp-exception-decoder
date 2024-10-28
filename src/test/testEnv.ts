@@ -10,6 +10,7 @@ import { constants, promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { rimraf } from 'rimraf';
+import { SemVer, gte } from 'semver';
 import { access, isWindows, run } from '../utils';
 import { cliVersion } from './cliContext.json';
 import cliEnv from './envs.cli.json';
@@ -177,13 +178,19 @@ async function setupToolsEnv(
 
 async function assertCli(cliContext: CliContext): Promise<string> {
   const { cliPath, cliVersion } = cliContext;
-  assert.notEqual(cliPath, undefined);
-  assert.strictEqual(cliPath.length > 0, true);
+  assert.ok(cliPath);
+  assert.ok(cliPath.length);
   const stdout = await run(cliPath, ['version', '--format', 'json']);
-  assert.notEqual(stdout, undefined);
-  assert.strictEqual(stdout.length > 0, true);
-  const version = JSON.parse(stdout);
-  assert.strictEqual(version.VersionString, cliVersion);
+  assert.ok(stdout);
+  assert.ok(stdout.length);
+  const actualVersion = JSON.parse(stdout).VersionString;
+  let expectedVersion = cliVersion;
+  // Drop the `v` prefix from the CLI GitHub release name.
+  // https://github.com/arduino/arduino-cli/pull/2374
+  if (gte(expectedVersion, '0.35.0-rc.1')) {
+    expectedVersion = new SemVer(expectedVersion).version;
+  }
+  assert.strictEqual(actualVersion, expectedVersion);
   return cliPath;
 }
 
@@ -203,18 +210,14 @@ async function assertPlatformExists(
     '--format',
     'json',
   ]);
-  assert.notEqual(stdout, undefined);
-  assert.strictEqual(stdout.length > 0, true);
+  assert.ok(stdout);
+  assert.ok(stdout.length);
   const platforms = JSON.parse(stdout);
-  assert.strictEqual(Array.isArray(platforms), true);
+  assert.ok(Array.isArray(platforms));
   const platform = (<Array<Record<string, unknown>>>platforms).find(
     (p) => p.id === id
   );
-  assert.notEqual(
-    platform,
-    undefined,
-    `Could not find installed platform: '${id}'`
-  );
+  assert.ok(platform, `Could not find installed platform: '${id}'`);
 }
 
 export async function setupTestEnv(): Promise<TestEnv> {

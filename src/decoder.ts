@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { FQBN } from 'fqbn';
 import path from 'node:path';
 import type {
   ArduinoState,
@@ -30,21 +31,21 @@ export async function createDecodeParams(
   if (!sketchPath) {
     throw new Error('Sketch path is not set');
   }
-  const fqbn = sanitizeFqbn(arduinoState.fqbn);
-  if (!fqbn) {
+  if (!arduinoState.fqbn) {
     throw new Error('No board selected');
   }
-  const [vendor, arch] = splitFqbn(fqbn);
+  const fqbn = new FQBN(arduinoState.fqbn).sanitize();
+  const { vendor, arch } = fqbn;
   if (!boardDetails) {
     throw new DecodeParamsError(
       `Platform '${vendor}:${arch}' is not installed`,
-      { sketchPath, fqbn }
+      { sketchPath, fqbn: fqbn.toString() }
     );
   }
-  if (!supportedArchitectures.has(arch)) {
+  if (!supportedArchitectures.has(fqbn.arch)) {
     throw new DecodeParamsError(`Unsupported board: '${fqbn}'`, {
       sketchPath,
-      fqbn,
+      fqbn: fqbn.toString(),
     });
   }
   if (!compileSummary) {
@@ -52,7 +53,7 @@ export async function createDecodeParams(
       'The summary of the previous compilation is unavailable. Compile the sketch',
       {
         sketchPath,
-        fqbn,
+        fqbn: fqbn.toString(),
       }
     );
   }
@@ -66,19 +67,19 @@ export async function createDecodeParams(
   if (!elfPath) {
     throw new DecodeParamsError(
       `Could not detect the '.elf' file in the build folder`,
-      { sketchPath, fqbn }
+      { sketchPath, fqbn: fqbn.toString() }
     );
   }
   if (!toolPath) {
-    throw new DecodeParamsError('Could not detect the DGB tool path', {
+    throw new DecodeParamsError('Could not detect the GDB tool path', {
       sketchPath,
-      fqbn,
+      fqbn: fqbn.toString(),
     });
   }
   return {
     toolPath,
     elfPath,
-    fqbn,
+    fqbn: fqbn.toString(),
     sketchPath,
   };
 }
@@ -405,7 +406,7 @@ async function findToolPath(
   debug: Debug = decoderDebug
 ): Promise<string | undefined> {
   const { fqbn, buildProperties } = boardDetails;
-  const [, arch] = splitFqbn(fqbn);
+  const { arch } = new FQBN(fqbn);
   if (!supportedArchitectures.has(arch)) {
     throw new Error(`Unsupported board architecture: '${fqbn}'`);
   }
@@ -555,25 +556,6 @@ function parseGDBLine(
   }
   debug(`parseGDBLine, failed: ${raw}`);
   return undefined;
-}
-
-// Based-on https://github.com/arduino/arduino-ide/blob/31deeebb4970b4de9925161c291084d8d5f8273d/arduino-ide-extension/src/common/protocol/boards-service.ts#L663-L674
-/**
- * Converts the `VENDOR:ARCHITECTURE:BOARD_ID[:MENU_ID=OPTION_ID[,MENU2_ID=OPTION_ID ...]]` FQBN to
- * `VENDOR:ARCHITECTURE:BOARD_ID` format.
- * See the details of the `{build.fqbn}` entry in the [specs](https://arduino.github.io/arduino-cli/latest/platform-specification/#global-predefined-properties).
- */
-function sanitizeFqbn(fqbn: string | undefined): string | undefined {
-  if (!fqbn) {
-    return undefined;
-  }
-  const [vendor, arch, id] = splitFqbn(fqbn);
-  return `${vendor}:${arch}:${id}`;
-}
-
-function splitFqbn(fqbn: string): [vendor: string, arch: string, id: string] {
-  const [vendor, arch, id] = fqbn.split(':');
-  return [vendor, arch, id];
 }
 
 /**

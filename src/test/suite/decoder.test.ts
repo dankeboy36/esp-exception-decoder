@@ -241,7 +241,7 @@ describe('decoder', () => {
         ),
         (reason) =>
           reason instanceof DecodeParamsError &&
-          /Could not detect the DGB tool path/.test(reason.message)
+          /Could not detect the GDB tool path/.test(reason.message)
       );
     });
 
