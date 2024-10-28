@@ -212,7 +212,7 @@ async function assertPlatformExists(
   ]);
   assert.ok(stdout);
   assert.ok(stdout.length);
-  const platforms = JSON.parse(stdout);
+  const { platforms } = JSON.parse(stdout);
   assert.ok(Array.isArray(platforms));
   const platform = (<Array<Record<string, unknown>>>platforms).find(
     (p) => p.id === id
