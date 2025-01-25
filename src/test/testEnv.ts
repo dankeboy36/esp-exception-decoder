@@ -4,10 +4,8 @@
 // VS Code without bundling every change to a VSIX and trying it out in Arduino IDE
 
 import debug from 'debug';
-import { Options, UI, installLatest, prepare } from 'install-from-gh-to-vscode';
 import assert from 'node:assert/strict';
 import { constants, promises as fs } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { rimraf } from 'rimraf';
 import { SemVer, gte } from 'semver';
@@ -252,96 +250,25 @@ async function ensureCliExists(
   version: string = cliVersion
 ): Promise<string | undefined> {
   await fs.mkdir(storagePath, { recursive: true });
-  const cliOptions = arduinoCliOptions(version);
-  const ui = new Headless(storagePath, cliOptions);
-  if (cliOptions.versionRange) {
-    ui.executablePath = path.join(
-      storagePath,
-      'install',
-      cliOptions.versionRange,
-      `${cliOptions.executableName}${isWindows ? '.exe' : ''}`
-    );
-  }
-  let cliPath = await executablePath(ui);
-  if (!cliPath) {
-    // installs a semver range. the version is a pinned semver for the tests
-    await installLatest(ui);
-    cliPath = await executablePath(ui);
-  }
-  return cliPath;
-}
-
-async function executablePath(ui: UI): Promise<string | undefined> {
-  const { executablePath } = await prepare(ui, false);
-  return executablePath || undefined;
-}
-
-function arduinoCliOptions(versionRange: string): Options {
-  return {
-    gh: { owner: 'arduino', repo: 'arduino-cli' },
-    versionRange,
-    executableName: 'arduino-cli',
-    versionFlags: ['version', '--format', 'json'],
-    parseVersion: (output: string) => JSON.parse(output.trim()).VersionString,
-    pickAsset: async (assetNames: string[]) => {
-      const platform = os.platform();
-      const arch = os.arch();
-      const assetKey = `${platform}_${arch}`;
-      const suffix = assets[assetKey];
-      if (!suffix) {
-        return -1;
-      }
-      return assetNames.findIndex((assetName) => assetName.endsWith(suffix));
-    },
-  };
-}
-const assets: Record<string, string> = {
-  //   linux_arm: 'Linux_ARMv7.tar.gz',
-  //   linux_arm64: 'Linux_ARM64.tar.gz',
-  linux_x64: 'Linux_64bit.tar.gz',
-  darwin_arm64: 'macOS_ARM64.tar.gz',
-  darwin_x64: 'macOS_64bit.tar.gz',
-  //   win32_ia32: 'Windows_32bit.zip',
-  win32_x64: 'Windows_64bit.zip',
-};
-
-class Headless implements UI {
-  constructor(readonly storagePath: string, readonly options: Options) {}
-  executablePath: string | undefined = undefined;
-  info(): void {
-    // noop
-  }
-  error(): void {
-    // noop
-  }
-  showHelp(): void {
-    // noop
-  }
-  promptReload(): void {
-    // noop
-  }
-  promptUpdate(): void {
-    // noop
-  }
-  promptInstall(): void {
-    // noop
-  }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async shouldReuse(version: string): Promise<boolean> {
-    return true;
-  }
-  slow<T>(title: string, work: Promise<T>): Promise<T> {
-    return work;
-  }
-  progress<T>(
-    title: string,
-    cancel: unknown,
-    work: (progress: (fraction: number) => void) => Promise<T>
-  ): Promise<T> {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    return work(async (fraction) => {
-      // TODO: some download progress would be great like Code downloads electron for the tests
+  const tool = 'arduino-cli';
+  try {
+    const { getTool } = await import('get-arduino-tools');
+    const { toolPath } = await getTool({
+      tool,
+      version,
+      destinationFolderPath: storagePath,
     });
+    return toolPath;
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      err.message.includes('Use --force to overwrite')
+    ) {
+      // this is expected when the CLI is already downloaded. A specific error would be great though
+      return path.join(storagePath, `${tool}${isWindows ? '.exe' : ''}`);
+    } else {
+      throw err;
+    }
   }
 }
 
