@@ -44,7 +44,7 @@ export async function run(): Promise<void> {
   } else if (context === 'slow') {
     testsPattern = '**/**.slow-test.js';
   } else {
-    testsPattern = '**/**.test.js';
+    testsPattern = '**/*.test.js';
   }
   return new Promise((resolve, reject) => {
     glob(testsPattern, { cwd: testsRoot }, (err, files) => {

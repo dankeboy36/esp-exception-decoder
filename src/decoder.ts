@@ -1,5 +1,7 @@
 import debug from 'debug';
 import { FQBN } from 'fqbn';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type {
   ArduinoState,
@@ -13,7 +15,7 @@ const decoderDebug: Debug = debug('espExceptionDecoder:decoder');
 export interface DecodeParams {
   readonly toolPath: string;
   readonly elfPath: string;
-  readonly fqbn: string; // UI
+  readonly fqbn: FQBN;
   readonly sketchPath: string; // UI
 }
 
@@ -39,13 +41,13 @@ export async function createDecodeParams(
   if (!boardDetails) {
     throw new DecodeParamsError(
       `Platform '${vendor}:${arch}' is not installed`,
-      { sketchPath, fqbn: fqbn.toString() }
+      { sketchPath, fqbn }
     );
   }
   if (!supportedArchitectures.has(fqbn.arch)) {
     throw new DecodeParamsError(`Unsupported board: '${fqbn}'`, {
       sketchPath,
-      fqbn: fqbn.toString(),
+      fqbn,
     });
   }
   if (!compileSummary) {
@@ -53,7 +55,7 @@ export async function createDecodeParams(
       'The summary of the previous compilation is unavailable. Compile the sketch',
       {
         sketchPath,
-        fqbn: fqbn.toString(),
+        fqbn,
       }
     );
   }
@@ -67,19 +69,19 @@ export async function createDecodeParams(
   if (!elfPath) {
     throw new DecodeParamsError(
       `Could not detect the '.elf' file in the build folder`,
-      { sketchPath, fqbn: fqbn.toString() }
+      { sketchPath, fqbn }
     );
   }
   if (!toolPath) {
     throw new DecodeParamsError('Could not detect the GDB tool path', {
       sketchPath,
-      fqbn: fqbn.toString(),
+      fqbn,
     });
   }
   return {
     toolPath,
     elfPath,
-    fqbn: fqbn.toString(),
+    fqbn,
     sketchPath,
   };
 }
@@ -94,7 +96,7 @@ export class DecodeParamsError extends Error {
   }
 
   get fqbn(): string {
-    return this.partial.fqbn;
+    return this.partial.fqbn.toString();
   }
 
   get sketchPath(): string {
@@ -159,19 +161,28 @@ export async function decode(
   input: string,
   options: DecodeOptions = defaultDecodeOptions
 ): Promise<DecodeResult> {
-  const [exception, registerLocations, stacktraceLocations, allocLocation] =
-    await Promise.all([
-      parseException(input),
-      decodeRegisters(params, input, options),
-      decodeStacktrace(params, input, options),
-      decodeAlloc(params, input, options),
-    ]);
-  return {
-    exception,
-    registerLocations,
-    stacktraceLines: stacktraceLocations,
-    allocLocation,
-  };
+  try {
+    const [exception, registerLocations, stacktraceLines, allocLocation] =
+      await Promise.all([
+        parseException(input),
+        decodeRegisters(params, input, options),
+        decodeStacktrace(params, input, options),
+        decodeAlloc(params, input, options),
+      ]);
+    return {
+      exception,
+      registerLocations,
+      stacktraceLines,
+      allocLocation,
+    };
+  } catch (err) {
+    try {
+      // TODO: try parse it into a PanicInput. If ok, call cp with JSON.stringify(panicInput)
+      const result = await tryDecodeRiscv(params, input, options);
+      return result;
+    } catch {}
+    throw err;
+  }
 }
 
 // Taken from https://github.com/me-no-dev/EspExceptionDecoder/blob/ff4fc36bdaf0bfd6e750086ac01554867ede76d3/src/EspExceptionDecoder.java#L59-L90
@@ -208,6 +219,74 @@ const exceptions = [
   'LoadProhibited: A load referenced a page mapped with an attribute that does not permit loads',
   'StoreProhibited: A store referenced a page mapped with an attribute that does not permit stores',
 ];
+
+async function tryDecodeRiscv(
+  params: DecodeParams,
+  input: string,
+  options: DecodeOptions
+): Promise<DecodeResult> {
+  const gdbOutput = await processPanicOutput(params, input, options);
+  const stacktraceLines = parseGDBOutput(gdbOutput, options.debug);
+  return {
+    exception: parseException(input),
+    registerLocations: {}, // RISC-V specific register locations can be added here
+    stacktraceLines,
+    allocLocation: undefined,
+  };
+}
+
+function buildPanicServerArgs(
+  target: string,
+  panicOutputPath: string,
+  elfPath: string,
+  scriptPath: string
+): string[] {
+  return [
+    '--batch',
+    '-n',
+    elfPath,
+    '-ex',
+    `target remote | javascript "${process.execPath}" "${scriptPath}" --target ${target} "${panicOutputPath}"`,
+    '-ex',
+    'bt',
+  ];
+}
+
+async function processPanicOutput(
+  params: DecodeParams,
+  input: string,
+  options: DecodeOptions
+): Promise<string> {
+  const { elfPath, toolPath, fqbn } = params;
+  const { boardId: target } = fqbn;
+  let panicOutputFile;
+  try {
+    // Create a temporary file to store the panic output
+    panicOutputFile = path.join(os.tmpdir(), `panic_output_${Date.now()}.bin`);
+    await fs.promises.writeFile(panicOutputFile, input, 'utf8');
+
+    const scriptPath = path.join(__dirname, 'riscv.js');
+    const args = buildPanicServerArgs(
+      target,
+      panicOutputFile,
+      elfPath,
+      scriptPath
+    );
+
+    const { debug, signal } = options;
+    const stdout = await run(toolPath, args, { debug, signal });
+
+    return stdout;
+  } finally {
+    if (panicOutputFile) {
+      try {
+        await fs.promises.unlink(panicOutputFile);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  }
+}
 
 function parseException(
   input: string

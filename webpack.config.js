@@ -8,10 +8,13 @@ const path = require('path');
 const extensionConfig = {
   target: 'node',
   mode: 'none',
-  entry: './src/extension.ts',
+  entry: {
+    extension: './src/extension.ts',
+    riscv: './src/riscv.js',
+  },
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'extension.js',
+    filename: '[name].js',
     libraryTarget: 'commonjs2',
   },
   externals: {

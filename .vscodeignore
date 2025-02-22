@@ -15,3 +15,5 @@ test-resources/**
 .prettier*
 .github/**
 images/**
+release.config.js
+CHANGELOG.md
