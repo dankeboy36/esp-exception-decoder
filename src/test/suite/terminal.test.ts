@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import vscode from 'vscode';
 import { DecodeParamsError, ParsedGDBLine } from '../../decoder';
-import { __test } from '../../terminal';
+import { __tests } from '../../terminal';
 import { mockArduinoContext } from './mock';
 
 const {
@@ -16,7 +16,7 @@ const {
   green,
   blue,
   bold,
-} = __test;
+} = __tests;
 
 describe('terminal', () => {
   const arduinoContext = mockArduinoContext();

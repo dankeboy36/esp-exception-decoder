@@ -346,7 +346,7 @@ function color(
 /**
  * (non-API)
  */
-export const __test = {
+export const __tests = {
   openTerminal,
   stringifyLines,
   stringifyTerminalState,

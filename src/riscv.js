@@ -54,11 +54,11 @@ const gdbRegsInfoRiscvIlp32 = /** @type {const} */ ([
  * @typedef {keyof typeof gdbRegsInfo} Target
  */
 const gdbRegsInfo = /** @type {const} */ ({
-  esp32c3: gdbRegsInfoRiscvIlp32,
   esp32c2: gdbRegsInfoRiscvIlp32,
-  esp32h4: gdbRegsInfoRiscvIlp32,
+  esp32c3: gdbRegsInfoRiscvIlp32,
   esp32c6: gdbRegsInfoRiscvIlp32,
   esp32h2: gdbRegsInfoRiscvIlp32,
+  esp32h4: gdbRegsInfoRiscvIlp32,
 });
 
 /**
@@ -123,7 +123,7 @@ function createRegNameValidator(type) {
  * @param {ParsePanicOutputParams} params
  * @returns {ParsePanicOutputResult}
  */
-function parsePanicOutput({ input, target }) {
+function parse({ input, target }) {
   const lines = input.split('\n');
   /** @type {RegisterDump[]} */
   const regDumps = [];
@@ -235,8 +235,8 @@ function getStackAddrAndData({ stackDump }) {
  * @param {ParseIdfRiscvPanicOutputParams} params
  * @returns {PanicInfo}
  */
-function parseIdfRiscvPanicOutput({ input, target }) {
-  const { regDumps, stackDump } = parsePanicOutput({
+function parsePanicOutput({ input, target }) {
+  const { regDumps, stackDump } = parse({
     input,
     target,
   });
@@ -425,7 +425,7 @@ async function run() {
   // TODO: instead of writing the output into a file and reading the content back in this module,
   // pass in the content directly from the decoder. (can be fd or string content)
   const input = await fs.readFile(panicOutput, 'utf8');
-  const panicInfo = parseIdfRiscvPanicOutput({
+  const panicInfo = parsePanicOutput({
     input,
     target,
   });
@@ -436,3 +436,15 @@ async function run() {
 if (require.main === module) {
   run();
 }
+
+module.exports = {
+  /**
+   * (non-API)
+   */
+  __tests: {
+    GdbServer,
+    isTarget,
+    parse,
+    parsePanicOutput,
+  },
+};
