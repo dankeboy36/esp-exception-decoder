@@ -246,7 +246,7 @@ function buildPanicServerArgs(
     '-n',
     elfPath,
     '-ex',
-    `target remote | javascript "${process.execPath}" "${scriptPath}" --target ${target} "${panicOutputPath}"`,
+    `target remote | "${process.execPath}" "${scriptPath}" --target "${target}" "${panicOutputPath}"`,
     '-ex',
     'bt',
   ];
