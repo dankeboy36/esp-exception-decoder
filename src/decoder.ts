@@ -234,13 +234,19 @@ async function tryDecodeRiscv(
   };
 }
 
-function buildPanicServerArgs(elfPath: string, port: number): string[] {
+function buildPanicServerArgs(
+  elfPath: string,
+  port: number,
+  debug = true // TODO: make it configurable
+): string[] {
   return [
     '--batch',
     '-n',
     elfPath,
+    '-ex', // executes a command
+    `set remotetimeout ${debug ? 300 : 2}`, // Set the timeout limit to wait for the remote target to respond to num seconds. The default is 2 seconds. (https://sourceware.org/gdb/current/onlinedocs/gdb.html/Remote-Configuration.html)
     '-ex',
-    `target remote :${port}`,
+    `target remote :${port}`, // https://sourceware.org/gdb/current/onlinedocs/gdb.html/Server.html#Server
     '-ex',
     'bt',
   ];

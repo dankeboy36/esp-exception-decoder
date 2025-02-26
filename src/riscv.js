@@ -325,6 +325,10 @@ class GdbServer {
    * @param {net.Socket} socket
    */
   _handleCommand(buffer, socket) {
+    if (buffer.startsWith('+')) {
+      buffer = buffer.slice(1); // ignore the leading '+'
+    }
+
     const command = buffer.slice(1, -3); // ignore checksums
     // Acknowledge the command
     socket.write('+');
