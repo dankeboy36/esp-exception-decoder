@@ -1,18 +1,19 @@
 // @ts-check
 
-// Using CommonJS to ensure compatibility with the GDB remote debugger.
-// ESM is supported from GDB 11.1, but the decoder extension cannot guarantee the GDB version used by the platform.
-/* eslint-disable @typescript-eslint/no-var-requires */
-const fs = require('node:fs/promises');
-const { createWriteStream } = require('node:fs');
-const readline = require('node:readline');
-
 // Based on the work of:
 //  - [Peter Dragun](https://github.com/peterdragun)
 //  - [Ivan Grokhotkov](https://github.com/igrr)
 //  - [suda-morris](https://github.com/suda-morris)
 //
 // https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py
+
+// Using CommonJS to ensure compatibility with the GDB remote debugger.
+// ESM is supported from GDB 11.1, but the decoder extension cannot guarantee the GDB version used by the platform.
+/* eslint-disable @typescript-eslint/no-var-requires */
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { createWriteStream } = require('node:fs');
+const readline = require('node:readline');
 
 const gdbRegsInfoRiscvIlp32 = /** @type {const} */ ([
   'X0',
@@ -124,7 +125,7 @@ function createRegNameValidator(type) {
  * @returns {ParsePanicOutputResult}
  */
 function parse({ input, target }) {
-  const lines = input.split('\n');
+  const lines = input.split(/\r?\n|\r/);
   /** @type {RegisterDump[]} */
   const regDumps = [];
   /** @type {StackDump[]} */
@@ -285,8 +286,11 @@ class GdbServer {
 
     let buffer = '';
     rl.on('line', (line) => {
+      this.logger.log('Read: %s', line);
       buffer += line;
+      this.logger.log('Buffer: %s', buffer);
       if (buffer.length > 3 && buffer.slice(-3, -2) === '#') {
+        this.logger.log('Command: %s', buffer);
         this._handleCommand(buffer);
         buffer = '';
       }
@@ -300,7 +304,7 @@ class GdbServer {
     const command = buffer.slice(1, -3); // ignore checksums
     // Acknowledge the command
     this.outStream.write('+');
-    this.logger.debug('Got command: %s', command);
+    this.logger.log('Got command: %s', command);
     if (command === '?') {
       // report sigtrap as the stop reason; the exact reason doesn't matter for backtracing
       this._respond('T05');
@@ -339,18 +343,21 @@ class GdbServer {
    * @param {string} data
    */
   _respond(data) {
+    this.logger.log('Responding with: %s', data);
     // calculate checksum
     const dataBytes = Buffer.from(data, 'ascii');
+    this.logger.log('Data bytes: %s', dataBytes);
     const checksum = dataBytes.reduce((sum, byte) => sum + byte, 0) & 0xff;
+    this.logger.log('Checksum: %s', checksum);
     // format and write the response
     const res = `$${data}#${checksum.toString(16).padStart(2, '0')}`;
-    this.logger.debug('Wrote: %s', res);
     this.outStream.write(res);
+    this.logger.log('Wrote: %s', res);
     // get the result ('+' or '-')
     this.inStream.once('data', (ret) => {
-      this.logger.debug('Response: %s', ret.toString());
+      this.logger.log('Response: %s', ret.toString());
       if (ret.toString() !== '+') {
-        console.error(`GDB responded with '-' to ${res}`);
+        this.logger.error(`GDB responded with '-' to ${res}`);
         process.exit(1);
       }
     });
@@ -366,10 +373,14 @@ class GdbServer {
     // It appends the hexadecimal string to the response string.
     for (const regName of this.regList) {
       const regVal = this.panicInfo.regs[regName] || 0;
+      this.logger.log('Register %s: %d', regName, regVal);
       const regBytes = Buffer.alloc(4);
       regBytes.writeUInt32LE(regVal);
-      response += regBytes.toString('hex');
+      const regValHex = regBytes.toString('hex');
+      this.logger.log('Register %s: %s', regName, regValHex);
+      response += regValHex;
     }
+    this.logger.log('Register response: %s', response);
     this._respond(response);
   }
 
@@ -402,35 +413,48 @@ class GdbServer {
   }
 }
 
-async function run() {
-  const args = process.argv.slice(2);
+/**
+ * @param {readonly string[]} args
+ */
+function parseArgs(args) {
   if (args.length < 2) {
-    console.error('Usage: riscv.js --target <target> <panic_output>');
-    process.exit(1);
+    throw new Error('Usage: riscv.js --target <target> <panic_output>');
   }
 
   const targetIndex = args.indexOf('--target');
   if (targetIndex === -1 || targetIndex + 1 >= args.length) {
-    console.error('Target not specified');
-    process.exit(1);
+    throw new Error('Target not specified');
   }
 
   const target = /** @type {Target} */ (args[targetIndex + 1]);
   if (!isTarget(target)) {
-    console.error(`Unsupported target: ${target}`);
-    process.exit(1);
+    throw new Error(`Unsupported target: ${target}`);
   }
 
-  const panicOutput = args.slice(targetIndex + 2).join(' ');
-  // TODO: instead of writing the output into a file and reading the content back in this module,
-  // pass in the content directly from the decoder. (can be fd or string content)
-  const input = await fs.readFile(panicOutput, 'utf8');
-  const panicInfo = parsePanicOutput({
-    input,
-    target,
-  });
-  const server = new GdbServer(panicInfo, target);
-  server.run();
+  const panicOutput = args[targetIndex + 2];
+  return { target, panicOutput };
+}
+
+async function run() {
+  try {
+    const { target, panicOutput } = parseArgs(process.argv.slice(2));
+    // TODO: instead of writing the output into a file and reading the content back in this module,
+    // pass in the content directly from the decoder. (can be fd or string content)
+    const input = await fs.readFile(panicOutput, 'utf8');
+    const panicInfo = parsePanicOutput({
+      input,
+      target,
+    });
+    const logFile = path.join(
+      __dirname,
+      `gdb_server_${new Date().toISOString()}.log`
+    );
+    const server = new GdbServer(panicInfo, target, logFile);
+    server.run();
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
 }
 
 if (require.main === module) {
@@ -446,5 +470,7 @@ module.exports = {
     isTarget,
     parse,
     parsePanicOutput,
+    createRegNameValidator,
+    parseArgs,
   },
 };

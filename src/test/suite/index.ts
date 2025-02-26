@@ -42,9 +42,9 @@ export async function run(): Promise<void> {
   if (context === 'all') {
     testsPattern = '**/*test.js';
   } else if (context === 'slow') {
-    testsPattern = '**/**.slow-test.js';
+    testsPattern = '**/*.slow-test.js';
   } else {
-    testsPattern = '**/*.test.js';
+    testsPattern = '**/riscv.test.js';
   }
   return new Promise((resolve, reject) => {
     glob(testsPattern, { cwd: testsRoot }, (err, files) => {
