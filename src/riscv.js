@@ -10,10 +10,12 @@
 // Using CommonJS to ensure compatibility with the GDB remote debugger.
 // ESM is supported from GDB 11.1, but the decoder extension cannot guarantee the GDB version used by the platform.
 /* eslint-disable @typescript-eslint/no-var-requires */
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const { createWriteStream } = require('node:fs');
-const readline = require('node:readline');
+const net = require('node:net');
+
+const debug = require('debug');
+
+/** @type {import('./utils').Debug} */
+const riscvDebug = debug('espExceptionDecoder:riscv');
 
 const gdbRegsInfoRiscvIlp32 = /** @type {const} */ ([
   'X0',
@@ -257,113 +259,139 @@ function parsePanicOutput({ input, target }) {
   };
 }
 
+/**
+ * @typedef {Object} GdbServerParams
+ * @property {string} input
+ * @property {string} target
+ * @property {import('./utils').Debug} [debug]
+ */
 class GdbServer {
   /**
-   * @param {PanicInfo} panicInfo
-   * @param {Target} target
-   * @param {import('node:fs').PathLike} [logFile]
+   * @param {GdbServerParams} params
    */
-  constructor(panicInfo, target, logFile = undefined) {
-    this.panicInfo = panicInfo;
-    this.inStream = process.stdin;
-    this.outStream = process.stdout;
-    this.regList = gdbRegsInfo[target];
-
-    this.logger = console;
-    if (logFile) {
-      this.logger = new console.Console(
-        createWriteStream(logFile, { flags: 'w+' })
-      );
+  constructor(params) {
+    const { target, input } = params;
+    if (!isTarget(target)) {
+      throw new Error(`Unsupported target: ${target}`);
     }
+    this.panicInfo = parsePanicOutput({ input, target });
+    this.regList = gdbRegsInfo[target];
+    /** @type {net.Server|undefined} */
+    this.server = undefined;
+    this.debug = riscvDebug;
   }
 
-  run() {
-    const rl = readline.createInterface({
-      input: this.inStream,
-      output: this.outStream,
-      terminal: false,
+  async start(port = 0) {
+    if (this.server) {
+      throw new Error('Server already started');
+    }
+    const server = net.createServer();
+    this.server = server;
+    await new Promise((resolve) => {
+      server.on('listening', resolve);
+      server.listen(port);
     });
+    const address = server.address();
+    if (!address) {
+      throw new Error('Failed to start server');
+    }
+    if (typeof address === 'string') {
+      throw new Error(
+        `Expected an address info object. Got a string: ${address}`
+      );
+    }
+    server.on('connection', (socket) => {
+      socket.on('data', (data) => {
+        const buffer = data.toString();
+        if (buffer.length > 3 && buffer.slice(-3, -2) === '#') {
+          this.debug(`Command: ${buffer}`);
+          this._handleCommand(buffer, socket);
+        } else if (buffer !== '+') {
+          console.log('Invalid command: %s', buffer);
+          socket.write('-');
+        }
+      });
+    });
+    return address;
+  }
 
-    let buffer = '';
-    rl.on('line', (line) => {
-      this.logger.log('Read: %s', line);
-      buffer += line;
-      this.logger.log('Buffer: %s', buffer);
-      if (buffer.length > 3 && buffer.slice(-3, -2) === '#') {
-        this.logger.log('Command: %s', buffer);
-        this._handleCommand(buffer);
-        buffer = '';
-      }
-    });
+  close() {
+    this.server?.close();
+    this.server = undefined;
   }
 
   /**
    * @param {string} buffer
+   * @param {net.Socket} socket
    */
-  _handleCommand(buffer) {
+  _handleCommand(buffer, socket) {
     const command = buffer.slice(1, -3); // ignore checksums
     // Acknowledge the command
-    this.outStream.write('+');
-    this.logger.log('Got command: %s', command);
+    socket.write('+');
+    this.debug(`Got command: ${command}`);
     if (command === '?') {
       // report sigtrap as the stop reason; the exact reason doesn't matter for backtracing
-      this._respond('T05');
+      this._respond('T05', socket);
     } else if (command.startsWith('Hg') || command.startsWith('Hc')) {
       // Select thread command
-      this._respond('OK');
+      this._respond('OK', socket);
     } else if (command === 'qfThreadInfo') {
       // Get list of threads.
       // Only one thread for now, can be extended to show one thread for each core,
       // if we dump both cores (e.g. on an interrupt watchdog)
-      this._respond('m1');
+      this._respond('m1', socket);
     } else if (command === 'qC') {
       // That single thread is selected.
-      this._respond('QC1');
+      this._respond('QC1', socket);
     } else if (command === 'g') {
       // Registers read
-      this._respondRegs();
+      this._respondRegs(socket);
     } else if (command.startsWith('m')) {
       // Memory read
       const [addr, size] = command
         .slice(1)
         .split(',')
         .map((v) => parseInt(v, 16));
-      this._respondMem(addr, size);
+      this._respondMem(addr, size, socket);
     } else if (command.startsWith('vKill') || command === 'k') {
       // Quit
-      this._respond('OK');
-      process.exit(0);
+      this._respond('OK', socket);
+      socket.end();
     } else {
       // Empty response required for any unknown command
-      this._respond('');
+      this._respond('', socket);
     }
   }
 
   /**
    * @param {string} data
+   * @param {net.Socket} socket
    */
-  _respond(data) {
-    this.logger.log('Responding with: %s', data);
+  _respond(data, socket) {
+    // this.debug(`Responding with: ${data}`);
     // calculate checksum
     const dataBytes = Buffer.from(data, 'ascii');
-    this.logger.log('Data bytes: %s', dataBytes);
+    // this.debug(`Data bytes: ${dataBytes}`);
     const checksum = dataBytes.reduce((sum, byte) => sum + byte, 0) & 0xff;
-    this.logger.log('Checksum: %s', checksum);
+    // this.debug(`Checksum: ${checksum}`);
     // format and write the response
     const res = `$${data}#${checksum.toString(16).padStart(2, '0')}`;
-    this.outStream.write(res);
-    this.logger.log('Wrote: %s', res);
+    socket.write(res);
+    this.debug(`Wrote: ${res}`);
     // get the result ('+' or '-')
-    this.inStream.once('data', (ret) => {
-      this.logger.log('Response: %s', ret.toString());
-      if (ret.toString() !== '+') {
-        this.logger.error(`GDB responded with '-' to ${res}`);
-        process.exit(1);
-      }
-    });
+    // socket.once('data', (ret) => {
+    //   this.debug(`Response: ${ret.toString()}`);
+    //   if (ret.toString() !== '+') {
+    //     this.debug(`GDB responded with '-' to ${res}`);
+    //     // socket.end();
+    //   }
+    // });
   }
 
-  _respondRegs() {
+  /**
+   * @param {net.Socket} socket
+   */
+  _respondRegs(socket) {
     let response = '';
     // https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py#L242-L247
     // It loops over the list of register names.
@@ -373,22 +401,23 @@ class GdbServer {
     // It appends the hexadecimal string to the response string.
     for (const regName of this.regList) {
       const regVal = this.panicInfo.regs[regName] || 0;
-      this.logger.log('Register %s: %d', regName, regVal);
+      // this.debug(`Register ${regName}: ${regVal}`);
       const regBytes = Buffer.alloc(4);
       regBytes.writeUInt32LE(regVal);
       const regValHex = regBytes.toString('hex');
-      this.logger.log('Register %s: %s', regName, regValHex);
+      // this.debug(`Register ${regName}: ${regValHex}`);
       response += regValHex;
     }
-    this.logger.log('Register response: %s', response);
-    this._respond(response);
+    this.debug(`Register response: ${response}`);
+    this._respond(response, socket);
   }
 
   /**
    * @param {number} startAddr
    * @param {number} size
+   * @param {net.Socket} socket
    */
-  _respondMem(startAddr, size) {
+  _respondMem(startAddr, size, socket) {
     const stackAddrMin = this.panicInfo.stackBaseAddr;
     const stackData = this.panicInfo.stackData;
     const stackLen = stackData.length;
@@ -409,56 +438,8 @@ class GdbServer {
       }
     }
 
-    this._respond(result);
+    this._respond(result, socket);
   }
-}
-
-/**
- * @param {readonly string[]} args
- */
-function parseArgs(args) {
-  if (args.length < 2) {
-    throw new Error('Usage: riscv.js --target <target> <panic_output>');
-  }
-
-  const targetIndex = args.indexOf('--target');
-  if (targetIndex === -1 || targetIndex + 1 >= args.length) {
-    throw new Error('Target not specified');
-  }
-
-  const target = /** @type {Target} */ (args[targetIndex + 1]);
-  if (!isTarget(target)) {
-    throw new Error(`Unsupported target: ${target}`);
-  }
-
-  const panicOutput = args[targetIndex + 2];
-  return { target, panicOutput };
-}
-
-async function run() {
-  try {
-    const { target, panicOutput } = parseArgs(process.argv.slice(2));
-    // TODO: instead of writing the output into a file and reading the content back in this module,
-    // pass in the content directly from the decoder. (can be fd or string content)
-    const input = await fs.readFile(panicOutput, 'utf8');
-    const panicInfo = parsePanicOutput({
-      input,
-      target,
-    });
-    const logFile = path.join(
-      __dirname,
-      `gdb_server_${new Date().toISOString()}.log`
-    );
-    const server = new GdbServer(panicInfo, target, logFile);
-    server.run();
-  } catch (err) {
-    console.error(err);
-    process.exit(1);
-  }
-}
-
-if (require.main === module) {
-  run();
 }
 
 module.exports = {
@@ -471,6 +452,5 @@ module.exports = {
     parse,
     parsePanicOutput,
     createRegNameValidator,
-    parseArgs,
   },
 };

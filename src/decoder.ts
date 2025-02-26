@@ -1,13 +1,12 @@
 import debug from 'debug';
 import { FQBN } from 'fqbn';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import type {
   ArduinoState,
   BoardDetails,
   BuildProperties,
 } from 'vscode-arduino-api';
+import * as riscv from './riscv';
 import { Debug, access, isWindows, neverSignal, run } from './utils';
 
 const decoderDebug: Debug = debug('espExceptionDecoder:decoder');
@@ -235,18 +234,13 @@ async function tryDecodeRiscv(
   };
 }
 
-function buildPanicServerArgs(
-  target: string,
-  panicOutputPath: string,
-  elfPath: string,
-  scriptPath: string
-): string[] {
+function buildPanicServerArgs(elfPath: string, port: number): string[] {
   return [
     '--batch',
     '-n',
     elfPath,
     '-ex',
-    `target remote | "${process.execPath}" "${scriptPath}" --target "${target}" "${panicOutputPath}"`,
+    `target remote :${port}`,
     '-ex',
     'bt',
   ];
@@ -259,32 +253,24 @@ async function processPanicOutput(
 ): Promise<string> {
   const { elfPath, toolPath, fqbn } = params;
   const { boardId: target } = fqbn;
-  let panicOutputFile;
+  let server: { close: () => void } | undefined;
   try {
-    // Create a temporary file to store the panic output
-    panicOutputFile = path.join(os.tmpdir(), `panic_output_${Date.now()}.bin`);
-    await fs.promises.writeFile(panicOutputFile, input, 'utf8');
-
-    const scriptPath = path.join(__dirname, 'riscv.js');
-    const args = buildPanicServerArgs(
+    const gdbServer = new riscv.__tests.GdbServer({
+      input,
       target,
-      panicOutputFile,
-      elfPath,
-      scriptPath
-    );
+      debug: options.debug,
+    });
+    const { port } = await gdbServer.start();
+    server = gdbServer;
+
+    const args = buildPanicServerArgs(elfPath, port);
 
     const { debug, signal } = options;
     const stdout = await run(toolPath, args, { debug, signal });
 
     return stdout;
   } finally {
-    if (panicOutputFile) {
-      try {
-        await fs.promises.unlink(panicOutputFile);
-      } catch (error) {
-        console.error(error);
-      }
-    }
+    server?.close();
   }
 }
 

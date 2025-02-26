@@ -3,14 +3,8 @@ import { createDecodeParams, decode } from '../../decoder';
 import { __tests } from '../../riscv';
 import { arduinoState } from './arduinoState';
 
-const {
-  createRegNameValidator,
-  parseArgs,
-  GdbServer,
-  isTarget,
-  parse,
-  parsePanicOutput,
-} = __tests;
+const { createRegNameValidator, GdbServer, isTarget, parse, parsePanicOutput } =
+  __tests;
 
 const riscv32Input = `Guru Meditation Error: Core  0 panic'ed (Load access fault). Exception was unhandled.
 
