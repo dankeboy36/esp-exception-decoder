@@ -1,4 +1,15 @@
-// @ts-check
+import debug from 'debug';
+import { FQBN } from 'fqbn';
+import net from 'node:net';
+import {
+  type DecodeOptions,
+  type DecodeParams,
+  type DecodeResult,
+  type ParsedGDBLine,
+} from './decoder';
+import { Debug, run } from './utils';
+
+const riscvDebug: Debug = debug('espExceptionDecoder:riscv');
 
 // Based on the work of:
 //  - [Peter Dragun](https://github.com/peterdragun)
@@ -7,17 +18,7 @@
 //
 // https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py
 
-// Using CommonJS to ensure compatibility with the GDB remote debugger.
-// ESM is supported from GDB 11.1, but the decoder extension cannot guarantee the GDB version used by the platform.
-/* eslint-disable @typescript-eslint/no-var-requires */
-const net = require('node:net');
-
-const debug = require('debug');
-
-/** @type {import('./utils').Debug} */
-const riscvDebug = debug('espExceptionDecoder:riscv');
-
-const gdbRegsInfoRiscvIlp32 = /** @type {const} */ ([
+const gdbRegsInfoRiscvIlp32 = [
   'X0',
   'RA',
   'SP',
@@ -51,90 +52,64 @@ const gdbRegsInfoRiscvIlp32 = /** @type {const} */ ([
   'T5',
   'T6',
   'MEPC',
-]);
+] as const;
 
-/**
- * @typedef {keyof typeof gdbRegsInfo} Target
- */
-const gdbRegsInfo = /** @type {const} */ ({
+type Target = keyof typeof gdbRegsInfo;
+
+const gdbRegsInfo = {
   esp32c2: gdbRegsInfoRiscvIlp32,
   esp32c3: gdbRegsInfoRiscvIlp32,
   esp32c6: gdbRegsInfoRiscvIlp32,
   esp32h2: gdbRegsInfoRiscvIlp32,
   esp32h4: gdbRegsInfoRiscvIlp32,
-});
+} as const;
 
-/**
- * @typedef {Object} RegNameValidatorParams
- * @property {string} type
- */
+function isTarget(arg: unknown): arg is Target {
+  return typeof arg === 'string' && arg in gdbRegsInfo;
+}
 
-/**
- * @template {Target} T
- * @callback RegNameTypeGuard
- * @param {string} regName
- * @returns {regName is keyof typeof gdbRegsInfo[T]}
- */
-
-/**
- * @param {unknown} arg
- * @returns {arg is Target}
- */
-/** @type {(arg: unknown) => arg is Target} */
-const isTarget = (arg) => typeof arg === 'string' && arg in gdbRegsInfo;
-
-/**
- * @template {Target} T
- * @param {T} type
- * @returns {RegNameTypeGuard<T>}
- */
-function createRegNameValidator(type) {
+function createRegNameValidator<T extends Target>(type: T) {
   const regsInfo = gdbRegsInfo[type];
   if (!regsInfo) {
     throw new Error(`Unsupported target: ${type}`);
   }
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  return (regName) => regsInfo.includes(regName);
+  return (regName: string): regName is (typeof regsInfo)[number] =>
+    regsInfo.includes(regName as (typeof regsInfo)[number]);
 }
 
-/**
- * @typedef {Object} RegisterDump
- * @property {number} coreId
- * @property {Record<string,number>} regs
- */
+interface RegisterDump {
+  coreId: number;
+  regs: Record<string, number>;
+}
 
-/**
- * @typedef {Object} StackDump
- * @property {number} baseAddr
- * @property {number[]} data
- */
+interface StackDump {
+  baseAddr: number;
+  data: number[];
+}
 
-/**
- * @typedef {Object} ParsePanicOutputParams
- * @property {string} input
- * @property {keyof typeof gdbRegsInfo} target
- */
+interface ParsePanicOutputParams {
+  input: string;
+  target: Target;
+}
 
-/**
- * @typedef {Object} ParsePanicOutputResult
- * @property {RegisterDump[]} regDumps
- * @property {StackDump[]} stackDump
- */
+interface ParsePanicOutputResult {
+  exception?: number;
+  MTVAL: number | undefined;
+  regDumps: RegisterDump[];
+  stackDump: StackDump[];
+}
 
-/**
- * @param {ParsePanicOutputParams} params
- * @returns {ParsePanicOutputResult}
- */
-function parse({ input, target }) {
+function parse({
+  input,
+  target,
+}: ParsePanicOutputParams): ParsePanicOutputResult {
   const lines = input.split(/\r?\n|\r/);
-  /** @type {RegisterDump[]} */
-  const regDumps = [];
-  /** @type {StackDump[]} */
-  const stackDump = [];
-  /** @type {RegisterDump|undefined} */
-  let currentRegDump;
+  const regDumps: RegisterDump[] = [];
+  const stackDump: StackDump[] = [];
+  let currentRegDump: RegisterDump | undefined;
   let inStackMemory = false;
+  let exception: number | undefined;
+  let MTVAL: number | undefined;
 
   const regNameValidator = createRegNameValidator(target);
 
@@ -153,8 +128,12 @@ function parse({ input, target }) {
       for (const match of regMatches) {
         const regName = match[1];
         const regAddress = parseInt(match[2], 16);
-        if (regAddress && regNameValidator(regName)) {
-          currentRegDump.regs[regName] = regAddress;
+        if (regAddress) {
+          if (regNameValidator(regName)) {
+            currentRegDump.regs[regName] = regAddress;
+          } else if (regName === 'MCAUSE') {
+            exception = regAddress; // it's an exception code
+          }
         }
       }
       if (line.trim() === 'Stack memory:') {
@@ -173,25 +152,21 @@ function parse({ input, target }) {
     }
   });
 
-  return { regDumps, stackDump };
+  return { regDumps, stackDump, exception, MTVAL };
 }
 
-/**
- * @typedef {Object} GetStackAddrAndDataParams
- * @property {readonly StackDump[]} stackDump
- */
+interface GetStackAddrAndDataParams {
+  stackDump: readonly StackDump[];
+}
 
-/**
- * @typedef {Object} GetStackAddrAndDataResult
- * @property {number} stackBaseAddr
- * @property {Buffer} stackData
- */
+interface GetStackAddrAndDataResult {
+  stackBaseAddr: number;
+  stackData: Buffer;
+}
 
-/**
- * @param {GetStackAddrAndDataParams} stackDump
- * @returns {GetStackAddrAndDataResult}
- */
-function getStackAddrAndData({ stackDump }) {
+function getStackAddrAndData({
+  stackDump,
+}: GetStackAddrAndDataParams): GetStackAddrAndDataResult {
   let stackBaseAddr = 0;
   let baseAddr = 0;
   let bytesInLine = 0;
@@ -220,25 +195,25 @@ function getStackAddrAndData({ stackDump }) {
   return { stackBaseAddr, stackData };
 }
 
-/**
- * @typedef {Object} PanicInfo
- * @property {number} coreId
- * @property {Record<string,number>} regs
- * @property {number} stackBaseAddr
- * @property {Buffer} stackData
- */
+interface PanicInfo {
+  MTVAL?: number;
+  exception?: number;
+  coreId: number;
+  regs: Record<string, number>;
+  stackBaseAddr: number;
+  stackData: Buffer;
+  target: Target;
+}
 
-/**
- * @typedef {Object} ParseIdfRiscvPanicOutputParams
- * @property {string} input
- * @property {Target} target
- */
+interface ParseIdfRiscvPanicOutputParams {
+  input: string;
+  target: Target;
+}
 
-/**
- * @param {ParseIdfRiscvPanicOutputParams} params
- * @returns {PanicInfo}
- */
-function parsePanicOutput({ input, target }) {
+function parsePanicOutput({
+  input,
+  target,
+}: ParseIdfRiscvPanicOutputParams): PanicInfo {
   const { regDumps, stackDump } = parse({
     input,
     target,
@@ -256,29 +231,25 @@ function parsePanicOutput({ input, target }) {
     regs,
     stackBaseAddr,
     stackData,
+    target,
   };
 }
 
-/**
- * @typedef {Object} GdbServerParams
- * @property {string} input
- * @property {string} target
- * @property {import('./utils').Debug} [debug]
- */
+interface GdbServerParams {
+  panicInfo: PanicInfo;
+  debug?: Debug;
+}
+
 class GdbServer {
-  /**
-   * @param {GdbServerParams} params
-   */
-  constructor(params) {
-    const { target, input } = params;
-    if (!isTarget(target)) {
-      throw new Error(`Unsupported target: ${target}`);
-    }
-    this.panicInfo = parsePanicOutput({ input, target });
-    this.regList = gdbRegsInfo[target];
-    /** @type {net.Server|undefined} */
-    this.server = undefined;
-    this.debug = riscvDebug;
+  private readonly panicInfo: PanicInfo;
+  private readonly regList: readonly string[];
+  private readonly debug: Debug;
+  private server?: net.Server;
+
+  constructor(params: GdbServerParams) {
+    this.panicInfo = params.panicInfo;
+    this.regList = gdbRegsInfo[params.panicInfo.target];
+    this.debug = params.debug ?? riscvDebug;
   }
 
   async start(port = 0) {
@@ -287,7 +258,7 @@ class GdbServer {
     }
     const server = net.createServer();
     this.server = server;
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       server.on('listening', resolve);
       server.listen(port);
     });
@@ -320,11 +291,7 @@ class GdbServer {
     this.server = undefined;
   }
 
-  /**
-   * @param {string} buffer
-   * @param {net.Socket} socket
-   */
-  _handleCommand(buffer, socket) {
+  private _handleCommand(buffer: string, socket: net.Socket) {
     if (buffer.startsWith('+')) {
       buffer = buffer.slice(1); // ignore the leading '+'
     }
@@ -367,11 +334,7 @@ class GdbServer {
     }
   }
 
-  /**
-   * @param {string} data
-   * @param {net.Socket} socket
-   */
-  _respond(data, socket) {
+  private _respond(data: string, socket: net.Socket) {
     // this.debug(`Responding with: ${data}`);
     // calculate checksum
     const dataBytes = Buffer.from(data, 'ascii');
@@ -392,10 +355,7 @@ class GdbServer {
     // });
   }
 
-  /**
-   * @param {net.Socket} socket
-   */
-  _respondRegs(socket) {
+  private _respondRegs(socket: net.Socket) {
     let response = '';
     // https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py#L242-L247
     // It loops over the list of register names.
@@ -416,22 +376,14 @@ class GdbServer {
     this._respond(response, socket);
   }
 
-  /**
-   * @param {number} startAddr
-   * @param {number} size
-   * @param {net.Socket} socket
-   */
-  _respondMem(startAddr, size, socket) {
+  private _respondMem(startAddr: number, size: number, socket: net.Socket) {
     const stackAddrMin = this.panicInfo.stackBaseAddr;
     const stackData = this.panicInfo.stackData;
     const stackLen = stackData.length;
     const stackAddrMax = stackAddrMin + stackLen;
 
-    /**
-     * @param {number} addr
-     * @returns {boolean}
-     */
-    const inStack = (addr) => stackAddrMin <= addr && addr < stackAddrMax;
+    const inStack = (addr: number) =>
+      stackAddrMin <= addr && addr < stackAddrMax;
 
     let result = '';
     for (let addr = startAddr; addr < startAddr + size; addr++) {
@@ -446,15 +398,155 @@ class GdbServer {
   }
 }
 
-module.exports = {
-  /**
-   * (non-API)
-   */
-  __tests: {
-    GdbServer,
-    isTarget,
-    parse,
-    parsePanicOutput,
-    createRegNameValidator,
-  },
-};
+const exceptions = [
+  { code: 0x0, description: 'Instruction address misaligned' },
+  { code: 0x1, description: 'Instruction access fault' },
+  { code: 0x2, description: 'Illegal instruction' },
+  { code: 0x3, description: 'Breakpoint' },
+  { code: 0x4, description: 'Load address misaligned' },
+  { code: 0x5, description: 'Load access fault' },
+  { code: 0x6, description: 'Store/AMO address misaligned' },
+  { code: 0x7, description: 'Store/AMO access fault' },
+  { code: 0x8, description: 'Environment call from U-mode' },
+  { code: 0x9, description: 'Environment call from S-mode' },
+  { code: 0xb, description: 'Environment call from M-mode' },
+  { code: 0xc, description: 'Instruction page fault' },
+  { code: 0xd, description: 'Load page fault' },
+  { code: 0xf, description: 'Store/AMO page fault' },
+];
+
+type RiscvFQBN = FQBN & { boardId: Target };
+
+function isRiscvFQBN(fqbn: FQBN): fqbn is RiscvFQBN {
+  return isTarget(fqbn.boardId);
+}
+
+function buildPanicServerArgs(
+  elfPath: string,
+  port: number,
+  debug = true // TODO: make it configurable
+): string[] {
+  return [
+    '--batch',
+    '-n',
+    elfPath,
+    '-ex', // executes a command
+    `set remotetimeout ${debug ? 300 : 2}`, // Set the timeout limit to wait for the remote target to respond to num seconds. The default is 2 seconds. (https://sourceware.org/gdb/current/onlinedocs/gdb.html/Remote-Configuration.html)
+    '-ex',
+    `target remote :${port}`, // https://sourceware.org/gdb/current/onlinedocs/gdb.html/Server.html#Server
+    '-ex',
+    'bt',
+  ];
+}
+
+async function processPanicOutput(
+  params: DecodeParams,
+  panicInfo: PanicInfo,
+  options: DecodeOptions
+): Promise<string> {
+  const { elfPath, toolPath } = params;
+  let server: { close: () => void } | undefined;
+  try {
+    const gdbServer = new GdbServer({
+      panicInfo,
+      debug: options.debug,
+    });
+    const { port } = await gdbServer.start();
+    server = gdbServer;
+
+    const args = buildPanicServerArgs(elfPath, port);
+
+    const { debug, signal } = options;
+    const stdout = await run(toolPath, args, { debug, signal });
+
+    return stdout;
+  } finally {
+    server?.close();
+  }
+}
+
+export class InvalidTargetError extends Error {
+  constructor(fqbn: FQBN) {
+    super(`Invalid target: ${fqbn}`);
+    this.name = 'InvalidTargetError';
+  }
+}
+
+export async function decodeRiscv(
+  params: DecodeParams,
+  input: string,
+  options: DecodeOptions
+): Promise<DecodeResult> {
+  if (!isRiscvFQBN(params.fqbn)) {
+    throw new InvalidTargetError(params.fqbn);
+  }
+  const target = params.fqbn.boardId;
+
+  const panicInfo = parsePanicOutput({
+    input,
+    target,
+  });
+
+  const stdout = await processPanicOutput(params, panicInfo, options);
+  const exception = exceptions.find((e) => e.code === panicInfo.exception);
+
+  const registerLocations: Record<string, string> = {};
+  if (panicInfo.regs.MEPC) {
+    registerLocations.MEPC = panicInfo.regs.MEPC.toString(16);
+  }
+  if (panicInfo.MTVAL) {
+    registerLocations.MTVAL = panicInfo.MTVAL.toString(16);
+  }
+
+  const stacktraceLines = parseGDBOutput(stdout);
+
+  return {
+    exception: exception ? [exception.description, exception.code] : undefined,
+    allocLocation: undefined,
+    registerLocations,
+    stacktraceLines,
+  };
+}
+
+function parseGDBOutput(stdout: string, debug: Debug = riscvDebug) {
+  return stdout.split(/\r?\n|\r/).reduce((acc, line) => {
+    const parsed = parseGDBLine(line, debug);
+    if (parsed) {
+      acc.push(parsed);
+    }
+    return acc;
+  }, [] as ParsedGDBLine[]);
+}
+
+function parseGDBLine(
+  line: string,
+  debug: Debug = riscvDebug
+): ParsedGDBLine | undefined {
+  const regex = /(.+) at (.+) \((\d+)\) /;
+  const match = line.match(regex);
+  if (match) {
+    const lineNumber = match[3];
+    console.log('lineNumber', lineNumber);
+    const address = match[1];
+    const file = match[2];
+    const method = address.split(' ')[0];
+    return {
+      line,
+      address,
+      file,
+      method,
+    };
+  }
+  return undefined;
+}
+
+/**
+ * (non-API)
+ */
+export const __tests = {
+  createRegNameValidator,
+  GdbServer,
+  isTarget,
+  parse,
+  parsePanicOutput,
+} as const;

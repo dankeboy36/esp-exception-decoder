@@ -106,6 +106,13 @@ Stack memory:
 3fc986e0: 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000
 `;
 
+const esp32c3Stdout = `a::geta (this=0x0) at /Users/kittaakos/Documents/Arduino/riscv_1/riscv_1.ino:11
+11	    return a;
+#0  a::geta (this=0x0) at /Users/kittaakos/Documents/Arduino/riscv_1/riscv_1.ino:11
+#1  loop () at /Users/kittaakos/Documents/Arduino/riscv_1/riscv_1.ino:21
+#2  0x4c1c0042 in ?? ()
+Backtrace stopped: frame did not save the PC`;
+
 describe('riscv', () => {
   it('should be true', () => {
     const result = parsePanicOutput({ input: riscv32Input, target: 'esp32c3' });
@@ -134,5 +141,6 @@ describe('riscv', () => {
   it('should decode', async () => {
     const params = await createDecodeParams(arduinoState);
     const result = await decode(params, esp32c3Input);
+    console.log(result);
   });
 });

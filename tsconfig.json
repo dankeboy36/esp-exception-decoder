@@ -11,15 +11,6 @@
     "strict": true,
     "strictNullChecks": true,
     "noImplicitOverride": true,
-    "resolveJsonModule": true,
-    "allowJs": true
-  },
-  "include": [
-    "src"
-  ],
-  "exclude": [
-    "dist",
-    "out",
-    "node_modules"
-  ]
+    "resolveJsonModule": true
+  }
 }

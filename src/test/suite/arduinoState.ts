@@ -1,7 +1,8 @@
 // @ts-check
 
-/** @type {import('vscode-arduino-api').ArduinoState} */
-const arduinoState = {
+import type { ArduinoState } from 'vscode-arduino-api';
+
+export const arduinoState: ArduinoState = {
   sketchPath: '/Users/kittaakos/Documents/Arduino/riscv_1',
   fqbn: 'esp32:esp32:esp32c3',
   userDirPath: '/Users/kittaakos/Documents/Arduino',
@@ -1484,5 +1485,3 @@ const arduinoState = {
     usedLibraries: [],
   },
 };
-
-module.exports = { arduinoState };

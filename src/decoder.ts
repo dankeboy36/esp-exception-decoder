@@ -6,8 +6,8 @@ import type {
   BoardDetails,
   BuildProperties,
 } from 'vscode-arduino-api';
-import * as riscv from './riscv';
-import { Debug, access, isWindows, neverSignal, run } from './utils';
+import { decodeRiscv, InvalidTargetError } from './riscv';
+import { access, Debug, isWindows, neverSignal, run } from './utils';
 
 const decoderDebug: Debug = debug('espExceptionDecoder:decoder');
 
@@ -161,27 +161,29 @@ export async function decode(
   options: DecodeOptions = defaultDecodeOptions
 ): Promise<DecodeResult> {
   try {
-    const [exception, registerLocations, stacktraceLines, allocLocation] =
-      await Promise.all([
-        parseException(input),
-        decodeRegisters(params, input, options),
-        decodeStacktrace(params, input, options),
-        decodeAlloc(params, input, options),
-      ]);
-    return {
-      exception,
-      registerLocations,
-      stacktraceLines,
-      allocLocation,
-    };
+    const result = await decodeRiscv(params, input, options);
+    return result;
   } catch (err) {
-    try {
-      // TODO: try parse it into a PanicInput. If ok, call cp with JSON.stringify(panicInput)
-      const result = await tryDecodeRiscv(params, input, options);
-      return result;
-    } catch {}
-    throw err;
+    if (err instanceof InvalidTargetError) {
+      // try ESP32/ESP8266
+    } else {
+      throw err;
+    }
   }
+
+  const [exception, registerLocations, stacktraceLines, allocLocation] =
+    await Promise.all([
+      parseException(input),
+      decodeRegisters(params, input, options),
+      decodeStacktrace(params, input, options),
+      decodeAlloc(params, input, options),
+    ]);
+  return {
+    exception,
+    registerLocations,
+    stacktraceLines,
+    allocLocation,
+  };
 }
 
 // Taken from https://github.com/me-no-dev/EspExceptionDecoder/blob/ff4fc36bdaf0bfd6e750086ac01554867ede76d3/src/EspExceptionDecoder.java#L59-L90
@@ -218,67 +220,6 @@ const exceptions = [
   'LoadProhibited: A load referenced a page mapped with an attribute that does not permit loads',
   'StoreProhibited: A store referenced a page mapped with an attribute that does not permit stores',
 ];
-
-async function tryDecodeRiscv(
-  params: DecodeParams,
-  input: string,
-  options: DecodeOptions
-): Promise<DecodeResult> {
-  const gdbOutput = await processPanicOutput(params, input, options);
-  const stacktraceLines = parseGDBOutput(gdbOutput, options.debug);
-  return {
-    exception: parseException(input),
-    registerLocations: {}, // RISC-V specific register locations can be added here
-    stacktraceLines,
-    allocLocation: undefined,
-  };
-}
-
-function buildPanicServerArgs(
-  elfPath: string,
-  port: number,
-  debug = true // TODO: make it configurable
-): string[] {
-  return [
-    '--batch',
-    '-n',
-    elfPath,
-    '-ex', // executes a command
-    `set remotetimeout ${debug ? 300 : 2}`, // Set the timeout limit to wait for the remote target to respond to num seconds. The default is 2 seconds. (https://sourceware.org/gdb/current/onlinedocs/gdb.html/Remote-Configuration.html)
-    '-ex',
-    `target remote :${port}`, // https://sourceware.org/gdb/current/onlinedocs/gdb.html/Server.html#Server
-    '-ex',
-    'bt',
-  ];
-}
-
-async function processPanicOutput(
-  params: DecodeParams,
-  input: string,
-  options: DecodeOptions
-): Promise<string> {
-  const { elfPath, toolPath, fqbn } = params;
-  const { boardId: target } = fqbn;
-  let server: { close: () => void } | undefined;
-  try {
-    const gdbServer = new riscv.__tests.GdbServer({
-      input,
-      target,
-      debug: options.debug,
-    });
-    const { port } = await gdbServer.start();
-    server = gdbServer;
-
-    const args = buildPanicServerArgs(elfPath, port);
-
-    const { debug, signal } = options;
-    const stdout = await run(toolPath, args, { debug, signal });
-
-    return stdout;
-  } finally {
-    server?.close();
-  }
-}
 
 function parseException(
   input: string
