@@ -10,7 +10,6 @@ const extensionConfig = {
   mode: 'none',
   entry: {
     extension: './src/extension.ts',
-    riscv: './src/riscv.js',
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
