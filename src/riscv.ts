@@ -2,6 +2,7 @@ import debug from 'debug';
 import { FQBN } from 'fqbn';
 import net from 'node:net';
 import {
+  GDBLine,
   type DecodeOptions,
   type DecodeParams,
   type DecodeResult,
@@ -508,36 +509,44 @@ export async function decodeRiscv(
   };
 }
 
-function parseGDBOutput(stdout: string, debug: Debug = riscvDebug) {
-  return stdout.split(/\r?\n|\r/).reduce((acc, line) => {
-    const parsed = parseGDBLine(line, debug);
-    if (parsed) {
-      acc.push(parsed);
-    }
-    return acc;
-  }, [] as ParsedGDBLine[]);
-}
+function parseGDBOutput(stdout: string, debug: Debug = riscvDebug): GDBLine[] {
+  const gdbLines: GDBLine[] = [];
+  for (const line of stdout.split('\n')) {
+    const regex =
+      /(?:#\d+\s+)?([\w:~]+)\s*\(([^)]*)\)\s*(?:at\s+([\S]+):(\d+))?/g;
+    const match = regex.exec(line);
+    if (match) {
+      const method = match[1];
+      const args = match[2];
+      const file = match[3];
+      const line = match[4];
 
-function parseGDBLine(
-  line: string,
-  debug: Debug = riscvDebug
-): ParsedGDBLine | undefined {
-  const regex = /(.+) at (.+) \((\d+)\) /;
-  const match = line.match(regex);
-  if (match) {
-    const lineNumber = match[3];
-    console.log('lineNumber', lineNumber);
-    const address = match[1];
-    const file = match[2];
-    const method = address.split(' ')[0];
-    return {
-      line,
-      address,
-      file,
-      method,
-    };
+      if (file && line) {
+        const parsedLine: ParsedGDBLine = {
+          method,
+          address: args,
+          file,
+          line,
+        };
+        gdbLines.push(parsedLine);
+      } else {
+        gdbLines.push({
+          line: line ?? '',
+          address: args,
+        });
+      }
+    } else {
+      const fallbackRegex = /0x([0-9a-fA-F]+)\s*in\s+([\S]+)/g;
+      const fallbackMatch = fallbackRegex.exec(line);
+      if (fallbackMatch) {
+        gdbLines.push({
+          line: '',
+          address: fallbackMatch[1],
+        });
+      }
+    }
   }
-  return undefined;
+  return gdbLines;
 }
 
 /**
