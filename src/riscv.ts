@@ -52,7 +52,7 @@ const gdbRegsInfoRiscvIlp32 = [
   'T4',
   'T5',
   'T6',
-  'MEPC',
+  'MEPC', // PC equivalent
 ] as const;
 
 type Target = keyof typeof gdbRegsInfo;
@@ -129,12 +129,12 @@ function parse({
       for (const match of regMatches) {
         const regName = match[1];
         const regAddress = parseInt(match[2], 16);
-        if (regAddress) {
-          if (regNameValidator(regName)) {
-            currentRegDump.regs[regName] = regAddress;
-          } else if (regName === 'MCAUSE') {
-            exception = regAddress; // it's an exception code
-          }
+        if (regNameValidator(regName)) {
+          currentRegDump.regs[regName] = regAddress;
+        } else if (regName === 'MCAUSE') {
+          exception = regAddress; // it's an exception code
+        } else if (regName === 'MTVAL') {
+          MTVAL = regAddress; // EXCVADDR equivalent
         }
       }
       if (line.trim() === 'Stack memory:') {
@@ -215,7 +215,7 @@ function parsePanicOutput({
   input,
   target,
 }: ParseIdfRiscvPanicOutputParams): PanicInfo {
-  const { regDumps, stackDump } = parse({
+  const { regDumps, stackDump, MTVAL, exception } = parse({
     input,
     target,
   });
@@ -228,6 +228,8 @@ function parsePanicOutput({
   const { stackBaseAddr, stackData } = getStackAddrAndData({ stackDump });
 
   return {
+    MTVAL,
+    exception,
     coreId,
     regs,
     stackBaseAddr,
@@ -466,6 +468,10 @@ async function processPanicOutput(
   }
 }
 
+function toHexString(number: number): string {
+  return `0x${number.toString(16).padStart(8, '0')}`;
+}
+
 export class InvalidTargetError extends Error {
   constructor(fqbn: FQBN) {
     super(`Invalid target: ${fqbn}`);
@@ -492,11 +498,11 @@ export async function decodeRiscv(
   const exception = exceptions.find((e) => e.code === panicInfo.exception);
 
   const registerLocations: Record<string, string> = {};
-  if (panicInfo.regs.MEPC) {
-    registerLocations.MEPC = panicInfo.regs.MEPC.toString(16);
+  if (typeof panicInfo.regs.MEPC === 'number') {
+    registerLocations.MEPC = toHexString(panicInfo.regs.MEPC);
   }
-  if (panicInfo.MTVAL) {
-    registerLocations.MTVAL = panicInfo.MTVAL.toString(16);
+  if (typeof panicInfo.MTVAL === 'number') {
+    registerLocations.MTVAL = toHexString(panicInfo.MTVAL);
   }
 
   const stacktraceLines = parseGDBOutput(stdout);
@@ -511,37 +517,43 @@ export async function decodeRiscv(
 
 function parseGDBOutput(stdout: string, debug: Debug = riscvDebug): GDBLine[] {
   const gdbLines: GDBLine[] = [];
-  for (const line of stdout.split('\n')) {
-    const regex =
-      /(?:#\d+\s+)?([\w:~]+)\s*\(([^)]*)\)\s*(?:at\s+([\S]+):(\d+))?/g;
+  const regex = /^#\d+\s+([\w:~<>]+)\s*\(([^)]*)\)\s*(?:at\s+([\S]+):(\d+))?/;
+
+  for (const line of stdout.split(/\r?\n|\r/)) {
     const match = regex.exec(line);
     if (match) {
       const method = match[1];
-      const args = match[2];
+      const rawArgs = match[2]; // raw args
       const file = match[3];
-      const line = match[4];
+      const lineNum = match[4];
 
-      if (file && line) {
-        const parsedLine: ParsedGDBLine = {
-          method,
-          address: args,
-          file,
-          line,
-        };
-        gdbLines.push(parsedLine);
-      } else {
-        gdbLines.push({
-          line: line ?? '',
-          address: args,
+      const args: Record<string, string> = {};
+      if (rawArgs) {
+        rawArgs.split(',').forEach((arg) => {
+          const keyValue = arg.trim().match(/(\w+)\s*=\s*(\S+)/);
+          if (keyValue) {
+            args[keyValue[1]] = keyValue[2];
+          }
         });
       }
+
+      const parsedLine: ParsedGDBLine = {
+        method,
+        address: rawArgs || '??', // Could be a memory address if not a method
+        file,
+        line: lineNum,
+        args,
+      };
+
+      gdbLines.push(parsedLine);
     } else {
-      const fallbackRegex = /0x([0-9a-fA-F]+)\s*in\s+([\S]+)/g;
+      // Try fallback for addresses without function names
+      const fallbackRegex = /^#\d+\s+0x([0-9a-fA-F]+)\s*in\s+(\?\?)/;
       const fallbackMatch = fallbackRegex.exec(line);
       if (fallbackMatch) {
         gdbLines.push({
-          line: '',
-          address: fallbackMatch[1],
+          address: `0x${fallbackMatch[1]}`,
+          line: '??',
         });
       }
     }

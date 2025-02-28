@@ -129,6 +129,7 @@ export function isGDBLine(arg: unknown): arg is GDBLine {
 export interface ParsedGDBLine extends GDBLine {
   readonly file: string;
   readonly method: string;
+  readonly args?: Readonly<Record<string, string>>; // TODO: ask community if useful
 }
 export function isParsedGDBLine(gdbLine: GDBLine): gdbLine is ParsedGDBLine {
   return (
