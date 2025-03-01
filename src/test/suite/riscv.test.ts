@@ -251,10 +251,6 @@ describe('riscv', () => {
     });
   });
 
-  describe('parse', () => {
-    //
-  });
-
   describe('parsePanicOutput', () => {
     it('multi-code is not yet supported', () => {
       assert.throws(() =>
