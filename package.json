@@ -32,6 +32,8 @@
     "compile-tests": "tsc -p . --outDir out",
     "format": "prettier --write .",
     "lint": "eslint src --ext ts",
+    "prepackage": "npm run build",
+    "package": "vsce package",
     "release": "semantic-release",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "test": "node ./out/test/runTest.js",
