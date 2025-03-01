@@ -1,11 +1,10 @@
 import { before } from 'mocha';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { ArduinoState } from 'vscode-arduino-api';
+import { createDecodeParams, decode, ParsedGDBLine } from '../../decoder';
 import { run } from '../../utils';
 import type { TestEnv } from '../testEnv';
-import { ArduinoState } from 'vscode-arduino-api';
-import { createDecodeParams, ParsedGDBLine } from '../../decoder';
-import { decodeRiscv } from '../../riscv';
 import { esp32c3Input } from './riscv.test';
 
 const sketchesPath = path.join(__dirname, '../../../src/test/sketches/');
@@ -87,7 +86,7 @@ describe('riscv (slow)', () => {
 
   it('should decode', async () => {
     const params = await createDecodeParams(arduinoState);
-    const result = await decodeRiscv(params, esp32c3Input);
+    const result = await decode(params, esp32c3Input);
     assert.deepStrictEqual(result.exception, ['Load access fault', 5]);
     assert.deepStrictEqual(result.registerLocations, {
       MEPC: '0x4200007e',
