@@ -180,6 +180,7 @@ export async function decode(
         decodeStacktrace(params, input, options),
         decodeAlloc(params, input, options),
       ]);
+
     result = {
       exception,
       registerLocations,
@@ -196,7 +197,7 @@ function fixWindowsPaths(result: DecodeResult): DecodeResult {
     ...result,
     stacktraceLines: result.stacktraceLines.map((gdbLine) =>
       isParsedGDBLine(gdbLine)
-        ? { ...gdbLine, line: fixWindowsPath(gdbLine.line) }
+        ? { ...gdbLine, file: fixWindowsPath(gdbLine.file) }
         : gdbLine
     ),
   };
