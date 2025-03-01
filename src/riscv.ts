@@ -464,7 +464,7 @@ function toHexString(number: number): string {
   return `0x${number.toString(16).padStart(8, '0')}`;
 }
 
-function parseGDBOutput(stdout: string, debug: Debug = riscvDebug): GDBLine[] {
+function parseGDBOutput(stdout: string): GDBLine[] {
   const gdbLines: GDBLine[] = [];
   const regex = /^#\d+\s+([\w:~<>]+)\s*\(([^)]*)\)\s*(?:at\s+([\S]+):(\d+))?/;
 
