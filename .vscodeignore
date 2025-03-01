@@ -17,3 +17,4 @@ test-resources/**
 images/**
 release.config.js
 CHANGELOG.md
+.nyc_output

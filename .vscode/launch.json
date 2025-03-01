@@ -19,6 +19,7 @@
       ],
       "env": {
         "NO_TEST_TIMEOUT": "true",
+        "NO_TEST_COVERAGE": "true",
         "TEST_DEBUG": "espExceptionDecoder*"
       },
       "outFiles": [
@@ -38,6 +39,7 @@
       "env": {
         "CLI_TEST_CONTEXT": "slow",
         "NO_TEST_TIMEOUT": "true",
+        "NO_TEST_COVERAGE": "true",
         "TEST_DEBUG": "espExceptionDecoder*"
       },
       "outFiles": [

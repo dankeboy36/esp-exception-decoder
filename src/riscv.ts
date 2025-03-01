@@ -129,7 +129,7 @@ function parse({
       for (const match of regMatches) {
         const regName = match[1];
         const regAddress = parseInt(match[2], 16);
-        if (regNameValidator(regName)) {
+        if (regAddress && regNameValidator(regName)) {
           currentRegDump.regs[regName] = regAddress;
         } else if (regName === 'MCAUSE') {
           exception = regAddress; // it's an exception code
@@ -259,12 +259,14 @@ class GdbServer {
     if (this.server) {
       throw new Error('Server already started');
     }
+
     const server = net.createServer();
     this.server = server;
     await new Promise<void>((resolve) => {
       server.on('listening', resolve);
       server.listen(port);
     });
+
     const address = server.address();
     if (!address) {
       throw new Error('Failed to start server');
@@ -274,18 +276,24 @@ class GdbServer {
         `Expected an address info object. Got a string: ${address}`
       );
     }
+
     server.on('connection', (socket) => {
       socket.on('data', (data) => {
         const buffer = data.toString();
+        if (buffer.startsWith('-')) {
+          console.log('Invalid command: %s', buffer);
+          socket.write('-');
+          socket.end();
+          return;
+        }
+
         if (buffer.length > 3 && buffer.slice(-3, -2) === '#') {
           this.debug(`Command: ${buffer}`);
           this._handleCommand(buffer, socket);
-        } else if (buffer !== '+') {
-          console.log('Invalid command: %s', buffer);
-          socket.write('-');
         }
       });
     });
+
     return address;
   }
 
@@ -338,24 +346,13 @@ class GdbServer {
   }
 
   private _respond(data: string, socket: net.Socket) {
-    // this.debug(`Responding with: ${data}`);
     // calculate checksum
     const dataBytes = Buffer.from(data, 'ascii');
-    // this.debug(`Data bytes: ${dataBytes}`);
     const checksum = dataBytes.reduce((sum, byte) => sum + byte, 0) & 0xff;
-    // this.debug(`Checksum: ${checksum}`);
     // format and write the response
     const res = `$${data}#${checksum.toString(16).padStart(2, '0')}`;
     socket.write(res);
     this.debug(`Wrote: ${res}`);
-    // get the result ('+' or '-')
-    // socket.once('data', (ret) => {
-    //   this.debug(`Response: ${ret.toString()}`);
-    //   if (ret.toString() !== '+') {
-    //     this.debug(`GDB responded with '-' to ${res}`);
-    //     // socket.end();
-    //   }
-    // });
   }
 
   private _respondRegs(socket: net.Socket) {
@@ -368,11 +365,9 @@ class GdbServer {
     // It appends the hexadecimal string to the response string.
     for (const regName of this.regList) {
       const regVal = this.panicInfo.regs[regName] || 0;
-      // this.debug(`Register ${regName}: ${regVal}`);
       const regBytes = Buffer.alloc(4);
       regBytes.writeUInt32LE(regVal);
       const regValHex = regBytes.toString('hex');
-      // this.debug(`Register ${regName}: ${regValHex}`);
       response += regValHex;
     }
     this.debug(`Register response: ${response}`);
@@ -570,4 +565,11 @@ export const __tests = {
   isTarget,
   parse,
   parsePanicOutput,
+  buildPanicServerArgs,
+  processPanicOutput,
+  toHexString,
+  parseGDBOutput,
+  getStackAddrAndData,
+  gdbRegsInfoRiscvIlp32,
+  gdbRegsInfo,
 } as const;

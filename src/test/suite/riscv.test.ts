@@ -3,8 +3,20 @@ import { createDecodeParams, decode } from '../../decoder';
 import { __tests } from '../../riscv';
 import { arduinoState } from './arduinoState';
 
-const { createRegNameValidator, GdbServer, isTarget, parse, parsePanicOutput } =
-  __tests;
+const {
+  createRegNameValidator,
+  GdbServer,
+  isTarget,
+  parse,
+  parsePanicOutput,
+  buildPanicServerArgs,
+  getStackAddrAndData,
+  parseGDBOutput,
+  processPanicOutput,
+  toHexString,
+  gdbRegsInfo,
+  gdbRegsInfoRiscvIlp32,
+} = __tests;
 
 const riscv32Input = `Guru Meditation Error: Core  0 panic'ed (Load access fault). Exception was unhandled.
 
@@ -142,5 +154,105 @@ describe('riscv', () => {
     const params = await createDecodeParams(arduinoState);
     const result = await decode(params, esp32c3Input);
     console.log(result);
+  });
+
+  describe('createRegNameValidator', () => {
+    it('should validate the register name', () => {
+      Object.keys(gdbRegsInfo).forEach((target) => {
+        const validator = createRegNameValidator(
+          target as keyof typeof gdbRegsInfo
+        );
+        gdbRegsInfoRiscvIlp32.forEach((reg) => {
+          assert.strictEqual(validator(reg), true);
+        });
+      });
+    });
+
+    it('should fail for invalid target', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      assert.throws(() => createRegNameValidator('foo' as any));
+    });
+
+    it('should detect invalid', () => {
+      const actual = createRegNameValidator('esp32c3')('foo');
+      assert.strictEqual(actual, false);
+    });
+  });
+
+  describe('GdbServer', () => {
+    //
+  });
+
+  describe('isTarget', () => {
+    it('should be a valid target', () => {
+      Object.keys(gdbRegsInfo).forEach((target) => {
+        assert.strictEqual(isTarget(target), true);
+      });
+    });
+
+    it('should not be a valid target', () => {
+      ['riscv32', 'trash'].forEach((target) => {
+        assert.strictEqual(isTarget(target), false);
+      });
+    });
+  });
+
+  describe('parse', () => {
+    //
+  });
+
+  describe('parsePanicOutput', () => {
+    //
+  });
+
+  describe('buildPanicServerArgs', () => {
+    //
+  });
+
+  describe('getStackAddrAndData', () => {
+    //
+  });
+
+  describe('parseGDBOutput', () => {
+    it('should parse the GDB output', () => {
+      const lines =
+        parseGDBOutput(`a::geta (this=0x0) at /Users/kittaakos/Documents/Arduino/riscv_1/riscv_1.ino:11
+11\t    return a;
+#0  a::geta (this=0x0) at /Users/kittaakos/Documents/Arduino/riscv_1/riscv_1.ino:11
+#1  loop () at /Users/kittaakos/Documents/Arduino/riscv_1/riscv_1.ino:21
+#2  0x4c1c0042 in ?? ()
+Backtrace stopped: frame did not save the PC`);
+      assert.deepStrictEqual(lines, [
+        {
+          method: 'a::geta',
+          address: 'this=0x0',
+          file: '/Users/kittaakos/Documents/Arduino/riscv_1/riscv_1.ino',
+          line: '11',
+          args: {
+            this: '0x0',
+          },
+        },
+        {
+          method: 'loop',
+          address: '??',
+          file: '/Users/kittaakos/Documents/Arduino/riscv_1/riscv_1.ino',
+          line: '21',
+          args: {},
+        },
+        {
+          address: '0x4c1c0042',
+          line: '??',
+        },
+      ]);
+    });
+  });
+
+  describe('toHexString', () => {
+    it('should convert to hex string', () => {
+      assert.strictEqual(toHexString(0x12345678), '0x12345678');
+    });
+    it('should pad 0', () => {
+      assert.strictEqual(toHexString(0), '0x00000000');
+    });
   });
 });
