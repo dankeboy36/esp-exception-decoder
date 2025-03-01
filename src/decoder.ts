@@ -161,9 +161,9 @@ export async function decode(
   input: string,
   options: DecodeOptions = defaultDecodeOptions
 ): Promise<DecodeResult> {
+  let result: DecodeResult | undefined;
   try {
-    const result = await decodeRiscv(params, input, options);
-    return result;
+    result = await decodeRiscv(params, input, options);
   } catch (err) {
     if (err instanceof InvalidTargetError) {
       // try ESP32/ESP8266
@@ -172,19 +172,44 @@ export async function decode(
     }
   }
 
-  const [exception, registerLocations, stacktraceLines, allocLocation] =
-    await Promise.all([
-      parseException(input),
-      decodeRegisters(params, input, options),
-      decodeStacktrace(params, input, options),
-      decodeAlloc(params, input, options),
-    ]);
+  if (!result) {
+    const [exception, registerLocations, stacktraceLines, allocLocation] =
+      await Promise.all([
+        parseException(input),
+        decodeRegisters(params, input, options),
+        decodeStacktrace(params, input, options),
+        decodeAlloc(params, input, options),
+      ]);
+    result = {
+      exception,
+      registerLocations,
+      stacktraceLines,
+      allocLocation,
+    };
+  }
+
+  return fixWindowsPaths(result);
+}
+
+function fixWindowsPaths(result: DecodeResult): DecodeResult {
   return {
-    exception,
-    registerLocations,
-    stacktraceLines,
-    allocLocation,
+    ...result,
+    stacktraceLines: result.stacktraceLines.map((gdbLine) =>
+      isParsedGDBLine(gdbLine)
+        ? { ...gdbLine, line: fixWindowsPath(gdbLine.line) }
+        : gdbLine
+    ),
   };
+}
+
+// To fix the path case issue on Windows:
+//      -      "file": "D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino"
+//      +      "file": "d:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1\\riscv_1.ino"
+function fixWindowsPath(
+  path: string,
+  isWindows = process.platform === 'win32'
+): string {
+  return isWindows ? path.replace(/\//g, '\\') : path;
 }
 
 // Taken from https://github.com/me-no-dev/EspExceptionDecoder/blob/ff4fc36bdaf0bfd6e750086ac01554867ede76d3/src/EspExceptionDecoder.java#L59-L90
@@ -585,4 +610,5 @@ export const __tests = {
   parseAlloc,
   parseRegisters,
   exceptions,
+  fixWindowsPath,
 } as const;

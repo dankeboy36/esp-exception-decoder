@@ -489,7 +489,7 @@ function parseGDBOutput(stdout: string): GDBLine[] {
       const parsedLine: ParsedGDBLine = {
         method,
         address: rawArgs || '??', // Could be a memory address if not a method
-        file: fixWindowsPath(file),
+        file,
         line: lineNum,
         args,
       };
@@ -508,16 +508,6 @@ function parseGDBOutput(stdout: string): GDBLine[] {
     }
   }
   return gdbLines;
-}
-
-// To fix the path case issue on Windows:
-//      -      "file": "D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino"
-//      +      "file": "d:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1\\riscv_1.ino"
-function fixWindowsPath(
-  path: string,
-  isWindows = process.platform === 'win32'
-): string {
-  return isWindows ? path.replace(/\//g, '\\') : path;
 }
 
 function createDecodeResult(
@@ -591,5 +581,4 @@ export const __tests = {
   gdbRegsInfoRiscvIlp32,
   gdbRegsInfo,
   createDecodeResult,
-  fixWindowsPath,
 } as const;

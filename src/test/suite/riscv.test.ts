@@ -19,7 +19,6 @@ const {
   gdbRegsInfo,
   gdbRegsInfoRiscvIlp32,
   createDecodeResult,
-  fixWindowsPath,
 } = __tests;
 
 export const esp32c3Input = `Core  0 panic'ed (Load access fault). Exception was unhandled.
@@ -365,28 +364,6 @@ Stack memory:
     });
     it('should pad 0', () => {
       assert.strictEqual(toHexString(0), '0x00000000');
-    });
-  });
-
-  describe('fixWindowsPath', () => {
-    it('should fix the path', () => {
-      assert.strictEqual(
-        fixWindowsPath(
-          'D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino',
-          true
-        ),
-        'D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1\\riscv_1.ino'
-      );
-    });
-
-    it('should be noop if not on windows', () => {
-      assert.strictEqual(
-        fixWindowsPath(
-          'D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino',
-          false
-        ),
-        'D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino'
-      );
     });
   });
 });

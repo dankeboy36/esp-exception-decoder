@@ -23,6 +23,7 @@ const {
   parseAlloc,
   parseRegisters,
   exceptions,
+  fixWindowsPath,
 } = __tests;
 
 const esp8266Input = `--------------- CUT HERE FOR EXCEPTION DECODER ---------------
@@ -528,6 +529,28 @@ describe('decoder', () => {
         assert.strictEqual((<{ code: string }>err).code, 'ABORT_ERR');
         assert.strictEqual(abortController.signal.aborted, true);
       }
+    });
+  });
+
+  describe('fixWindowsPath', () => {
+    it('should fix the path', () => {
+      assert.strictEqual(
+        fixWindowsPath(
+          'D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino',
+          true
+        ),
+        'D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1\\riscv_1.ino'
+      );
+    });
+
+    it('should be noop if not on windows', () => {
+      assert.strictEqual(
+        fixWindowsPath(
+          'D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino',
+          false
+        ),
+        'D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino'
+      );
     });
   });
 });
