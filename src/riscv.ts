@@ -2,6 +2,7 @@ import debug from 'debug';
 import { FQBN } from 'fqbn';
 import net from 'node:net';
 import {
+  defaultDecodeOptions,
   GDBLine,
   type DecodeOptions,
   type DecodeParams,
@@ -243,7 +244,7 @@ interface GdbServerParams {
   debug?: Debug;
 }
 
-class GdbServer {
+export class GdbServer {
   private readonly panicInfo: PanicInfo;
   private readonly regList: readonly string[];
   private readonly debug: Debug;
@@ -419,17 +420,13 @@ function isRiscvFQBN(fqbn: FQBN): fqbn is RiscvFQBN {
   return isTarget(fqbn.boardId);
 }
 
-function buildPanicServerArgs(
-  elfPath: string,
-  port: number,
-  debug = true // TODO: make it configurable
-): string[] {
+function buildPanicServerArgs(elfPath: string, port: number): string[] {
   return [
     '--batch',
     '-n',
     elfPath,
-    '-ex', // executes a command
-    `set remotetimeout ${debug ? 300 : 2}`, // Set the timeout limit to wait for the remote target to respond to num seconds. The default is 2 seconds. (https://sourceware.org/gdb/current/onlinedocs/gdb.html/Remote-Configuration.html)
+    // '-ex', // executes a command
+    // `set remotetimeout ${debug ? 300 : 2}`, // Set the timeout limit to wait for the remote target to respond to num seconds. The default is 2 seconds. (https://sourceware.org/gdb/current/onlinedocs/gdb.html/Remote-Configuration.html)
     '-ex',
     `target remote :${port}`, // https://sourceware.org/gdb/current/onlinedocs/gdb.html/Server.html#Server
     '-ex',
@@ -465,49 +462,6 @@ async function processPanicOutput(
 
 function toHexString(number: number): string {
   return `0x${number.toString(16).padStart(8, '0')}`;
-}
-
-export class InvalidTargetError extends Error {
-  constructor(fqbn: FQBN) {
-    super(`Invalid target: ${fqbn}`);
-    this.name = 'InvalidTargetError';
-  }
-}
-
-export async function decodeRiscv(
-  params: DecodeParams,
-  input: string,
-  options: DecodeOptions
-): Promise<DecodeResult> {
-  if (!isRiscvFQBN(params.fqbn)) {
-    throw new InvalidTargetError(params.fqbn);
-  }
-  const target = params.fqbn.boardId;
-
-  const panicInfo = parsePanicOutput({
-    input,
-    target,
-  });
-
-  const stdout = await processPanicOutput(params, panicInfo, options);
-  const exception = exceptions.find((e) => e.code === panicInfo.exception);
-
-  const registerLocations: Record<string, string> = {};
-  if (typeof panicInfo.regs.MEPC === 'number') {
-    registerLocations.MEPC = toHexString(panicInfo.regs.MEPC);
-  }
-  if (typeof panicInfo.MTVAL === 'number') {
-    registerLocations.MTVAL = toHexString(panicInfo.MTVAL);
-  }
-
-  const stacktraceLines = parseGDBOutput(stdout);
-
-  return {
-    exception: exception ? [exception.description, exception.code] : undefined,
-    allocLocation: undefined,
-    registerLocations,
-    stacktraceLines,
-  };
 }
 
 function parseGDBOutput(stdout: string, debug: Debug = riscvDebug): GDBLine[] {
@@ -556,14 +510,62 @@ function parseGDBOutput(stdout: string, debug: Debug = riscvDebug): GDBLine[] {
   return gdbLines;
 }
 
+function createDecodeResult(
+  panicInfo: PanicInfo,
+  stdout: string
+): DecodeResult {
+  const exception = exceptions.find((e) => e.code === panicInfo.exception);
+
+  const registerLocations: Record<string, string> = {};
+  if (typeof panicInfo.regs.MEPC === 'number') {
+    registerLocations.MEPC = toHexString(panicInfo.regs.MEPC);
+  }
+  if (typeof panicInfo.MTVAL === 'number') {
+    registerLocations.MTVAL = toHexString(panicInfo.MTVAL);
+  }
+
+  const stacktraceLines = parseGDBOutput(stdout);
+
+  return {
+    exception: exception ? [exception.description, exception.code] : undefined,
+    allocLocation: undefined,
+    registerLocations,
+    stacktraceLines,
+  };
+}
+
+export class InvalidTargetError extends Error {
+  constructor(fqbn: FQBN) {
+    super(`Invalid target: ${fqbn}`);
+    this.name = 'InvalidTargetError';
+  }
+}
+
+export async function decodeRiscv(
+  params: DecodeParams,
+  input: string,
+  options: DecodeOptions = defaultDecodeOptions
+): Promise<DecodeResult> {
+  if (!isRiscvFQBN(params.fqbn)) {
+    throw new InvalidTargetError(params.fqbn);
+  }
+  const target = params.fqbn.boardId;
+
+  const panicInfo = parsePanicOutput({
+    input,
+    target,
+  });
+
+  const stdout = await processPanicOutput(params, panicInfo, options);
+  return createDecodeResult(panicInfo, stdout);
+}
+
 /**
  * (non-API)
  */
 export const __tests = {
   createRegNameValidator,
-  GdbServer,
   isTarget,
-  parse,
   parsePanicOutput,
   buildPanicServerArgs,
   processPanicOutput,
@@ -572,4 +574,5 @@ export const __tests = {
   getStackAddrAndData,
   gdbRegsInfoRiscvIlp32,
   gdbRegsInfo,
+  createDecodeResult,
 } as const;
