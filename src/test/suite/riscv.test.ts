@@ -21,7 +21,7 @@ const {
   createDecodeResult,
 } = __tests;
 
-const esp32c3Input = `Core  0 panic'ed (Load access fault). Exception was unhandled.
+export const esp32c3Input = `Core  0 panic'ed (Load access fault). Exception was unhandled.
 
 Core  0 register dump:
 MEPC    : 0x4200007e  RA      : 0x4200007e  SP      : 0x3fc98300  GP      : 0x3fc8d000  
