@@ -21,13 +21,25 @@ describe('riscv (slow)', () => {
     assert.notEqual(testEnv, undefined);
 
     const { cliPath } = testEnv.cliContext;
+    const { cliConfigPath } = testEnv.toolsEnvs.cli;
     const [boardDetailsStdout, compileStdout] = await Promise.all([
-      run(cliPath, ['board', 'details', '-b', fqbn, '--format', 'json']),
+      run(cliPath, [
+        'board',
+        'details',
+        '-b',
+        fqbn,
+        '--config-file',
+        cliConfigPath,
+        '--format',
+        'json',
+      ]),
       run(cliPath, [
         'compile',
         riscv1SketchPath,
         '-b',
         fqbn,
+        '--config-file',
+        cliConfigPath,
         '--format',
         'json',
       ]),
