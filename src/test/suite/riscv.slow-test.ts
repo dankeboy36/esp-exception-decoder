@@ -4,7 +4,7 @@ import path from 'node:path';
 import { run } from '../../utils';
 import type { TestEnv } from '../testEnv';
 import { ArduinoState } from 'vscode-arduino-api';
-import { createDecodeParams } from '../../decoder';
+import { createDecodeParams, ParsedGDBLine } from '../../decoder';
 import { decodeRiscv } from '../../riscv';
 import { esp32c3Input } from './riscv.test';
 
@@ -88,35 +88,66 @@ describe('riscv (slow)', () => {
   it('should decode', async () => {
     const params = await createDecodeParams(arduinoState);
     const result = await decodeRiscv(params, esp32c3Input);
-    assert.deepStrictEqual(result, {
-      exception: ['Load access fault', 5],
-      allocLocation: undefined,
-      registerLocations: {
-        MEPC: '0x4200007e',
-        MTVAL: '0x00000000',
-      },
-      stacktraceLines: [
-        {
-          method: 'a::geta',
-          address: 'this=0x0',
-          file: path.join(riscv1SketchPath, 'riscv_1.ino'),
-          line: '11',
-          args: {
-            this: '0x0',
-          },
-        },
-        {
-          method: 'loop',
-          address: '??',
-          file: path.join(riscv1SketchPath, 'riscv_1.ino'),
-          line: '21',
-          args: {},
-        },
-        {
-          address: '0x4c1c0042',
-          line: '??',
-        },
-      ],
+    assert.deepStrictEqual(result.exception, ['Load access fault', 5]);
+    assert.deepStrictEqual(result.registerLocations, {
+      MEPC: '0x4200007e',
+      MTVAL: '0x00000000',
     });
+    assertObjectContains(result.stacktraceLines[0], {
+      method: 'a::geta',
+      address: 'this=0x0',
+      line: '11',
+      args: {
+        this: '0x0',
+      },
+    });
+    assertObjectContains(result.stacktraceLines[1], {
+      method: 'loop',
+      address: '??',
+      line: '21',
+      args: {},
+    });
+    assertObjectContains(result.stacktraceLines[2], {
+      address: '0x4c1c0042',
+      line: '??',
+    });
+
+    assert.strictEqual(
+      driveLetterToLowerCaseIfWin32(
+        (<ParsedGDBLine>result.stacktraceLines[0]).file
+      ),
+      driveLetterToLowerCaseIfWin32(path.join(riscv1SketchPath, 'riscv_1.ino'))
+    );
+    assert.strictEqual(
+      driveLetterToLowerCaseIfWin32(
+        (<ParsedGDBLine>result.stacktraceLines[1]).file
+      ),
+      driveLetterToLowerCaseIfWin32(path.join(riscv1SketchPath, 'riscv_1.ino'))
+    );
+    assert.strictEqual(
+      (<ParsedGDBLine>result.stacktraceLines[2]).file,
+      undefined
+    );
   });
+
+  // To fix the path case issue on Windows:
+  //      -      "file": "D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino"
+  //      +      "file": "d:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1\\riscv_1.ino"
+  function driveLetterToLowerCaseIfWin32(str: string) {
+    if (process.platform === 'win32' && /^[a-zA-Z]:\\/.test(str)) {
+      return str.charAt(0).toLowerCase() + str.slice(1);
+    }
+    return str;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function assertObjectContains(actual: any, expected: any) {
+    for (const key of Object.keys(expected)) {
+      assert.deepStrictEqual(
+        actual[key],
+        expected[key],
+        `Mismatch on key: ${key}, expected: ${expected[key]}, actual: ${actual[key]}`
+      );
+    }
+  }
 });
