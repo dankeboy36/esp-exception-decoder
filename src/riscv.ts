@@ -550,14 +550,20 @@ export async function decodeRiscv(
     throw new InvalidTargetError(params.fqbn);
   }
   const target = params.fqbn.boardId;
+  options.debug?.(`Decoding for target: ${target}`);
+  options.debug?.(`Input: ${input}`);
 
   const panicInfo = parsePanicOutput({
     input,
     target,
   });
+  options.debug?.(`Parsed panic info: ${JSON.stringify(panicInfo)}`);
 
   const stdout = await processPanicOutput(params, panicInfo, options);
-  return createDecodeResult(panicInfo, stdout);
+  options.debug?.(`GDB output: ${stdout}`);
+  const decodeResult = createDecodeResult(panicInfo, stdout);
+  options.debug?.(`Decode result: ${JSON.stringify(decodeResult)}`);
+  return decodeResult;
 }
 
 /**
