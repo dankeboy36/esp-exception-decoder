@@ -282,7 +282,7 @@ export class GdbServer {
       socket.on('data', (data) => {
         const buffer = data.toString();
         if (buffer.startsWith('-')) {
-          console.log('Invalid command: %s', buffer);
+          this.debug(`Invalid command: ${buffer}`);
           socket.write('-');
           socket.end();
           return;
