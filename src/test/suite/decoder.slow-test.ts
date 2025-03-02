@@ -142,7 +142,7 @@ async function createArduinoState(
 }
 
 function describeDecodeSuite(params: DecodeTestParams): Suite {
-  const { input, fqbn, sketchPath, expected } = params;
+  const { input, fqbn, sketchPath, expected, skip } = params;
   const assertDecodeResult = createAssertDecodeResult(sketchPath);
   let testEnv: TestEnv;
   let arduinoState: ArduinoState;
@@ -151,6 +151,10 @@ function describeDecodeSuite(params: DecodeTestParams): Suite {
     sketchPath
   )}' sketch on '${fqbn}'`, () => {
     before(async function () {
+      if (skip) {
+        console.info(`[TEST SKIP] ${skip}`);
+        return this.skip();
+      }
       testEnv = this.currentTest?.ctx?.['testEnv'];
       assert.notEqual(testEnv, undefined);
       arduinoState = await createArduinoState({
@@ -161,6 +165,9 @@ function describeDecodeSuite(params: DecodeTestParams): Suite {
     });
 
     it('should decode', async function () {
+      if (skip) {
+        return this.skip();
+      }
       this.slow(10_000);
       const params = await createDecodeParams(arduinoState);
       const actual = await decode(params, input);
@@ -246,6 +253,7 @@ type DecodeResultMatcher = Omit<DecodeResult, 'stacktraceLines'> & {
 interface DecodeTestParams extends Omit<CreateArduinoStateParams, 'testEnv'> {
   input: string;
   expected: DecodeResultMatcher;
+  skip?: boolean | string;
 }
 
 const esp32h2Input = `Guru Meditation Error: Core  0 panic'ed (Breakpoint). Exception was unhandled.
@@ -393,6 +401,10 @@ const decodeTestParams: DecodeTestParams[] = [
     sketchPath: path.join(sketchesPath, 'AE'),
   },
   {
+    skip:
+      process.platform === 'win32'
+        ? "'fatal error: bits/c++config.h: No such file or directory' due to too long path on Windows (https://github.com/espressif/arduino-esp32/issues/9654 + https://github.com/arendst/Tasmota/issues/1217#issuecomment-358056267)"
+        : false,
     fqbn: 'esp8266:esp8266:generic',
     input: esp8266Input,
     sketchPath: path.join(sketchesPath, 'AE'),
