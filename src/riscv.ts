@@ -486,8 +486,8 @@ function toHexString(number: number): string {
   return `0x${number.toString(16).padStart(8, '0')}`;
 }
 
-function parseGDBOutput(stdout: string): GDBLine[] {
-  const gdbLines: GDBLine[] = [];
+function parseGDBOutput(stdout: string): (GDBLine | ParsedGDBLine)[] {
+  const gdbLines: (GDBLine | ParsedGDBLine)[] = [];
   const regex = /^#\d+\s+([\w:~<>]+)\s*\(([^)]*)\)\s*(?:at\s+([\S]+):(\d+))?/;
 
   for (const line of stdout.split(/\r?\n|\r/)) {
@@ -508,15 +508,13 @@ function parseGDBOutput(stdout: string): GDBLine[] {
         });
       }
 
-      const parsedLine: ParsedGDBLine = {
+      gdbLines.push({
         method,
         address: rawArgs || '??', // Could be a memory address if not a method
         file,
         line: lineNum,
         args,
-      };
-
-      gdbLines.push(parsedLine);
+      });
     } else {
       // Try fallback for addresses without function names
       const fallbackRegex = /^#\d+\s+0x([0-9a-fA-F]+)\s*in\s+(\?\?)/;

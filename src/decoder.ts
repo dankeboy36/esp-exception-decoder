@@ -152,7 +152,7 @@ export type Location = GDBLine | Address;
 export interface DecodeResult {
   readonly exception: [message: string, code: number] | undefined;
   readonly registerLocations: Record<string, Location>;
-  readonly stacktraceLines: GDBLine[];
+  readonly stacktraceLines: (GDBLine | ParsedGDBLine)[];
   readonly allocLocation: [location: Location, size: number] | undefined;
 }
 
