@@ -95,6 +95,7 @@ async function installToolsViaGit(
         await run('python', [getPy], { silent: false, cwd: tempToolsPath });
       } catch (err) {
         if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+          // python has been renamed to python3 on some systems
           await run('python3', [getPy], { silent: false, cwd: tempToolsPath });
         } else {
           throw err;
