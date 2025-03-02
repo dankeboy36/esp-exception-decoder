@@ -169,7 +169,7 @@ describe('decoder (slow)', () => {
   params.map(describeSuite);
 
   it(`should throw an error when the board's architecture is unsupported`, async () => {
-    assert.rejects(
+    await assert.rejects(
       () => findToolPath(createBoardDetails('a:b:c')),
       /Unsupported board architecture: 'a:b:c'/
     );

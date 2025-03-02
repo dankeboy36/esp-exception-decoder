@@ -167,7 +167,7 @@ describe('riscv', () => {
     });
 
     it('should fail when the server is already started', async () => {
-      assert.rejects(() => server.start(), /server already started/gi);
+      await assert.rejects(() => server.start(), /server already started/gi);
     });
 
     it('should end the connection when message starts with minus', async () => {
@@ -234,8 +234,8 @@ describe('riscv', () => {
   });
 
   describe('decodeRiscv', () => {
-    it('should error on invalid target', () => {
-      assert.rejects(
+    it('should error on invalid target', async () => {
+      await assert.rejects(
         () =>
           decodeRiscv(
             {
