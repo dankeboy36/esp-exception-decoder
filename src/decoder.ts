@@ -208,7 +208,7 @@ function fixWindowsPaths(result: DecodeResult): DecodeResult {
       Object.entries(result.registerLocations).map(([key, value]) => [
         key,
         isGDBLine(value) && isParsedGDBLine(value)
-          ? { ...value, line: fixWindowsPath(value.line) }
+          ? { ...value, file: fixWindowsPath(value.file) }
           : value,
       ])
     ),
@@ -222,7 +222,9 @@ function fixWindowsPath(
   path: string,
   isWindows = process.platform === 'win32'
 ): string {
-  return isWindows ? path.replace(/\//g, '\\') : path;
+  return isWindows && /^[a-zA-Z]:\\/.test(path)
+    ? path.replace(/\//g, '\\')
+    : path;
 }
 
 // Taken from https://github.com/me-no-dev/EspExceptionDecoder/blob/ff4fc36bdaf0bfd6e750086ac01554867ede76d3/src/EspExceptionDecoder.java#L59-L90
@@ -624,4 +626,5 @@ export const __tests = {
   parseRegisters,
   exceptions,
   fixWindowsPath,
+  fixWindowsPaths,
 } as const;
