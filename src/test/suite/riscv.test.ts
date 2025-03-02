@@ -217,6 +217,35 @@ describe('riscv', () => {
         assert.strictEqual(received, expected);
       })
     );
+
+    describe('abort signal', () => {
+      let otherServer: GdbServer | undefined;
+      let abortController: AbortController;
+      let signal: AbortSignal;
+
+      beforeEach(() => {
+        abortController = new AbortController();
+        signal = abortController.signal;
+      });
+
+      afterEach(() => {
+        otherServer?.close();
+      });
+
+      it('after start', async () => {
+        otherServer = new GdbServer(params);
+        const startPromise = otherServer.start({ signal });
+        abortController.abort();
+        await assert.rejects(startPromise, /AbortError/);
+      });
+
+      it('before start', async () => {
+        otherServer = new GdbServer(params);
+        abortController.abort();
+        const startPromise = otherServer.start({ signal });
+        await assert.rejects(startPromise, /AbortError/);
+      });
+    });
   });
 
   describe('isTarget', () => {

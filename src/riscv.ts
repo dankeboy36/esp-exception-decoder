@@ -9,7 +9,7 @@ import {
   type DecodeResult,
   type ParsedGDBLine,
 } from './decoder';
-import { Debug, run } from './utils';
+import { AbortError, Debug, neverSignal, run } from './utils';
 
 const riscvDebug: Debug = debug('espExceptionDecoder:riscv');
 
@@ -244,6 +244,11 @@ interface GdbServerParams {
   debug?: Debug;
 }
 
+interface StartGdbServerParams {
+  port?: number;
+  signal?: AbortSignal;
+}
+
 export class GdbServer {
   private readonly panicInfo: PanicInfo;
   private readonly regList: readonly string[];
@@ -256,15 +261,32 @@ export class GdbServer {
     this.debug = params.debug ?? riscvDebug;
   }
 
-  async start(port = 0) {
+  async start(params: StartGdbServerParams = {}): Promise<net.AddressInfo> {
     if (this.server) {
       throw new Error('Server already started');
     }
 
+    const { port = 0, signal = neverSignal } = params ?? {};
     const server = net.createServer();
     this.server = server;
-    await new Promise<void>((resolve) => {
-      server.on('listening', resolve);
+
+    await new Promise<void>((resolve, reject) => {
+      const abortHandler = () => {
+        this.debug('User abort');
+        reject(new AbortError());
+        this.close();
+      };
+
+      if (signal.aborted) {
+        abortHandler();
+        return;
+      }
+
+      signal.addEventListener('abort', abortHandler);
+      server.on('listening', () => {
+        signal.removeEventListener('abort', abortHandler);
+        resolve();
+      });
       server.listen(port);
     });
 
@@ -446,7 +468,7 @@ async function processPanicOutput(
       panicInfo,
       debug: options.debug,
     });
-    const { port } = await gdbServer.start();
+    const { port } = await gdbServer.start({ signal: options.signal });
     server = gdbServer;
 
     const args = buildPanicServerArgs(elfPath, port);
