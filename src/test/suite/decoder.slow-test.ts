@@ -143,7 +143,6 @@ async function createArduinoState(
 
 function describeDecodeSuite(params: DecodeTestParams): Suite {
   const { input, fqbn, sketchPath, expected, skip } = params;
-  const assertDecodeResult = createAssertDecodeResult(sketchPath);
   let testEnv: TestEnv;
   let arduinoState: ArduinoState;
 
@@ -171,7 +170,8 @@ function describeDecodeSuite(params: DecodeTestParams): Suite {
       this.slow(10_000);
       const params = await createDecodeParams(arduinoState);
       const actual = await decode(params, input);
-      assertDecodeResult(actual, expected);
+
+      assertDecodeResultEquals(actual, expected);
     });
   });
 }
@@ -197,50 +197,54 @@ function assertObjectContains(actual: any, expected: any) {
   }
 }
 
-function createAssertDecodeResult(expectedSketchPath: string) {
-  const expectedSketchFile = path.join(
-    expectedSketchPath,
-    `${path.basename(expectedSketchPath)}.ino`
-  );
+function assertLocationEquals(actual: Location, expected: LocationMatcher) {
+  if (typeof expected === 'string' || !('file' in expected)) {
+    assert.deepStrictEqual(actual, expected);
+    return;
+  }
 
-  return (actual: DecodeResult, expected: DecodeResultMatcher) => {
-    assert.deepStrictEqual(actual.exception, expected.exception);
-    assert.deepStrictEqual(
-      actual.registerLocations,
-      expected.registerLocations
-    );
+  assertObjectContains(actual, {
+    method: expected.method,
+    address: expected.address,
+    line: expected.line,
+    args: expected.args,
+  });
 
+  if (typeof expected.file === 'function') {
+    const assertFile = expected.file;
+    assert.ok(assertFile((<ParsedGDBLine>actual).file));
+  } else {
     assert.strictEqual(
-      actual.stacktraceLines.length,
-      expected.stacktraceLines.length
+      driveLetterToLowerCaseIfWin32((<ParsedGDBLine>actual).file),
+      driveLetterToLowerCaseIfWin32(expected.file)
     );
+  }
+}
 
-    for (let i = 0; i < actual.stacktraceLines.length; i++) {
-      const actualLine = actual.stacktraceLines[i];
-      const expectedLine = expected.stacktraceLines[i];
-      if (!('file' in expectedLine)) {
-        assert.deepStrictEqual(actualLine, expectedLine);
-        continue;
-      }
+function assertDecodeResultEquals(
+  actual: DecodeResult,
+  expected: DecodeResultMatcher
+) {
+  assert.deepStrictEqual(actual.exception, expected.exception);
 
-      assertObjectContains(actualLine, {
-        method: expectedLine.method,
-        address: expectedLine.address,
-        line: expectedLine.line,
-        args: expectedLine.args,
-      });
+  assert.strictEqual(
+    Object.keys(actual.registerLocations).length,
+    Object.keys(expected.registerLocations).length
+  );
+  for (const [key, actualValue] of Object.entries(actual.registerLocations)) {
+    const expectedValue = expected.registerLocations[key];
+    assertLocationEquals(actualValue, expectedValue);
+  }
 
-      if (typeof expectedLine.file === 'function') {
-        const assertFile = expectedLine.file;
-        assert.ok(assertFile((<ParsedGDBLine>actualLine).file));
-      } else {
-        assert.strictEqual(
-          driveLetterToLowerCaseIfWin32((<ParsedGDBLine>actualLine).file),
-          driveLetterToLowerCaseIfWin32(expectedSketchFile)
-        );
-      }
-    }
-  };
+  assert.strictEqual(
+    actual.stacktraceLines.length,
+    expected.stacktraceLines.length
+  );
+  for (let i = 0; i < actual.stacktraceLines.length; i++) {
+    const actualLine = actual.stacktraceLines[i];
+    const expectedLine = expected.stacktraceLines[i];
+    assertLocationEquals(actualLine, expectedLine);
+  }
 }
 
 type GDBLineMatcher = Omit<ParsedGDBLine, 'file'> & {
