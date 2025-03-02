@@ -203,7 +203,7 @@ function fixWindowsPaths(result: DecodeResult): DecodeResult {
   };
 }
 
-// To fix the path case issue on Windows:
+// To fix the path separator issue on Windows:
 //      -      "file": "D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino"
 //      +      "file": "d:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1\\riscv_1.ino"
 function fixWindowsPath(
