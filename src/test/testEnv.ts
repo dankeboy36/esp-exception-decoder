@@ -230,10 +230,6 @@ async function assertPlatformExists(
 export async function setupTestEnv(): Promise<TestEnv> {
   const cliPath = await ensureCliExists(cliVersion);
   if (!cliPath) {
-    // Consider setting the `GITHUB_TOKEN` to the env if you hit a rate-limiter issue on the CI.
-    // See a related hint: https://github.com/microsoft/vscode-ripgrep#github-api-limit-note
-    // You can also cache and restore resources on the CI: https://github.com/actions/cache
-    // If you hit a proxy issue at download, please report a bug at https://github.com/dankeboy36/install-from-gh-to-vscode/issues/new. Thanks!
     throw new Error(`Could not find the Arduino CLI executable.`);
   }
   const cliContext = <CliContext>{
