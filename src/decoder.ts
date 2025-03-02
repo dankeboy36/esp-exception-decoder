@@ -147,7 +147,7 @@ export type Address = string;
 /**
  * Successfully decoded register address, or the address.
  */
-export type Location = GDBLine | Address;
+export type Location = GDBLine | ParsedGDBLine | Address;
 
 export interface DecodeResult {
   readonly exception: [message: string, code: number] | undefined;

@@ -246,8 +246,13 @@ function createAssertDecodeResult(expectedSketchPath: string) {
 type GDBLineMatcher = Omit<ParsedGDBLine, 'file'> & {
   file: (actualFile: string) => boolean;
 };
-type DecodeResultMatcher = Omit<DecodeResult, 'stacktraceLines'> & {
+type LocationMatcher = Location | GDBLineMatcher;
+type DecodeResultMatcher = Omit<
+  DecodeResult,
+  'stacktraceLines' | 'registerLocations'
+> & {
   stacktraceLines: (GDBLine | ParsedGDBLine | GDBLineMatcher)[];
+  registerLocations: Record<string, LocationMatcher>;
 };
 
 interface DecodeTestParams extends Omit<CreateArduinoStateParams, 'testEnv'> {
@@ -325,14 +330,22 @@ const decodeTestParams: DecodeTestParams[] = [
           args: {
             this: '0x0',
           },
-          file: path.join(sketchesPath, 'riscv_1/riscv_1.ino'),
+          file: (actualFile) =>
+            driveLetterToLowerCaseIfWin32(actualFile) ===
+            driveLetterToLowerCaseIfWin32(
+              path.join(sketchesPath, 'riscv_1/riscv_1.ino')
+            ),
         },
         {
           method: 'loop',
           address: '??',
           line: '21',
           args: {},
-          file: path.join(sketchesPath, 'riscv_1/riscv_1.ino'),
+          file: (actualFile) =>
+            driveLetterToLowerCaseIfWin32(actualFile) ===
+            driveLetterToLowerCaseIfWin32(
+              path.join(sketchesPath, 'riscv_1/riscv_1.ino')
+            ),
         },
         {
           address: '0x4c1c0042',
@@ -359,7 +372,9 @@ const decodeTestParams: DecodeTestParams[] = [
           address: '??',
           line: '7',
           args: {},
-          file: path.join(sketchesPath, 'AE/AE.ino'),
+          file: (actualFile) =>
+            driveLetterToLowerCaseIfWin32(actualFile) ===
+            driveLetterToLowerCaseIfWin32(path.join(sketchesPath, 'AE/AE.ino')),
         },
         {
           address: '0x6c1b0042',
@@ -375,10 +390,12 @@ const decodeTestParams: DecodeTestParams[] = [
     expected: {
       exception: undefined,
       registerLocations: {
-        PC: <Location>{
+        PC: {
           address: '0x400d15af',
           method: 'loop()',
-          file: path.join(sketchesPath, 'AE/AE.ino'),
+          file: (actualFile) =>
+            driveLetterToLowerCaseIfWin32(actualFile) ===
+            driveLetterToLowerCaseIfWin32(path.join(sketchesPath, 'AE/AE.ino')),
           line: '7',
         },
         EXCVADDR: '0x00000000',
@@ -387,7 +404,9 @@ const decodeTestParams: DecodeTestParams[] = [
         {
           address: '0x400d15ac',
           method: 'loop()',
-          file: path.join(sketchesPath, 'AE/AE.ino'),
+          file: (actualFile) =>
+            driveLetterToLowerCaseIfWin32(actualFile) ===
+            driveLetterToLowerCaseIfWin32(path.join(sketchesPath, 'AE/AE.ino')),
           line: '6',
         },
         {
