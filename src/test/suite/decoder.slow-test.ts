@@ -300,8 +300,14 @@ sp: 3ffffe60 end: 3fffffd0 offset: 0150
 3fffffc0:  feefeffe feefeffe 3fffdab0 40100d19  
 <<<stack<<<`;
 
+const skip =
+  process.platform === 'win32'
+    ? "'fatal error: bits/c++config.h: No such file or directory' due to too long path on Windows (https://github.com/espressif/arduino-esp32/issues/9654 + https://github.com/arendst/Tasmota/issues/1217#issuecomment-358056267)"
+    : false;
+
 const decodeTestParams: DecodeTestParams[] = [
   {
+    skip,
     input: esp32c3Input,
     fqbn: 'esp32:esp32:esp32c3',
     sketchPath: path.join(sketchesPath, 'riscv_1'),
@@ -337,6 +343,7 @@ const decodeTestParams: DecodeTestParams[] = [
     },
   },
   {
+    skip,
     input: esp32h2Input,
     fqbn: 'esp32:esp32:esp32h2',
     sketchPath: path.join(sketchesPath, 'AE'),
@@ -401,10 +408,7 @@ const decodeTestParams: DecodeTestParams[] = [
     sketchPath: path.join(sketchesPath, 'AE'),
   },
   {
-    skip:
-      process.platform === 'win32'
-        ? "'fatal error: bits/c++config.h: No such file or directory' due to too long path on Windows (https://github.com/espressif/arduino-esp32/issues/9654 + https://github.com/arendst/Tasmota/issues/1217#issuecomment-358056267)"
-        : false,
+    skip,
     fqbn: 'esp8266:esp8266:generic',
     input: esp8266Input,
     sketchPath: path.join(sketchesPath, 'AE'),
