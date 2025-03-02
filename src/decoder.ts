@@ -192,23 +192,26 @@ export async function decode(
   return fixWindowsPaths(result);
 }
 
-function fixWindowsPaths(result: DecodeResult): DecodeResult {
+function fixWindowsPaths(
+  result: DecodeResult,
+  isWindows = process.platform === 'win32'
+): DecodeResult {
   const [location] = result.allocLocation ?? [];
   if (location && isGDBLine(location) && isParsedGDBLine(location)) {
-    location.file = fixWindowsPath(location.file);
+    location.file = fixWindowsPath(location.file, isWindows);
   }
   return {
     ...result,
     stacktraceLines: result.stacktraceLines.map((gdbLine) =>
       isParsedGDBLine(gdbLine)
-        ? { ...gdbLine, file: fixWindowsPath(gdbLine.file) }
+        ? { ...gdbLine, file: fixWindowsPath(gdbLine.file, isWindows) }
         : gdbLine
     ),
     registerLocations: Object.fromEntries(
       Object.entries(result.registerLocations).map(([key, value]) => [
         key,
         isGDBLine(value) && isParsedGDBLine(value)
-          ? { ...value, file: fixWindowsPath(value.file) }
+          ? { ...value, file: fixWindowsPath(value.file, isWindows) }
           : value,
       ])
     ),
