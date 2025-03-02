@@ -96,7 +96,7 @@ function describeSuite(params: DecodeTestParams) {
   let testEnv: TestEnv;
   let arduinoState: ArduinoState;
 
-  return describe(`decode ${basename(sketchPath)} on ${fqbn}`, () => {
+  return describe(`decode '${basename(sketchPath)} sketch on ${fqbn}`, () => {
     before(async function () {
       testEnv = this.currentTest?.ctx?.['testEnv'];
       assert.notEqual(testEnv, undefined);
@@ -182,6 +182,26 @@ interface DecodeTestParams extends Omit<CreateArduinoStateParams, 'testEnv'> {
   expected: DecodeResult;
 }
 
+const esp32h2Input = `Guru Meditation Error: Core  0 panic'ed (Breakpoint). Exception was unhandled.
+
+Core  0 register dump:
+MEPC    : 0x42000054  RA      : 0x42000054  SP      : 0x40816af0  GP      : 0x4080bcc4  
+TP      : 0x40816b40  T0      : 0x400184be  T1      : 0x4080e000  T2      : 0x00000000  
+S0/FP   : 0x420001bc  S1      : 0x4080e000  A0      : 0x00000001  A1      : 0x00000001  
+A2      : 0x4080e000  A3      : 0x4080e000  A4      : 0x00000000  A5      : 0x600c5090  
+A6      : 0xfa000000  A7      : 0x00000014  S2      : 0x00000000  S3      : 0x00000000  
+S4      : 0x00000000  S5      : 0x00000000  S6      : 0x00000000  S7      : 0x00000000  
+S8      : 0x00000000  S9      : 0x00000000  S10     : 0x00000000  S11     : 0x00000000  
+T3      : 0x4080e000  T4      : 0x00000001  T5      : 0x4080e000  T6      : 0x00000001  
+MSTATUS : 0x00001881  MTVEC   : 0x40800001  MCAUSE  : 0x00000003  MTVAL   : 0x00009002  
+MHARTID : 0x00000000  
+
+Stack memory:
+40816af0: 0x00000000 0x00000000 0x00000000 0x42001b6c 0x00000000 0x00000000 0x00000000 0x4080670a
+40816b10: 0x00000000 0x00000000 0ESP-ROM:esp32h2-20221101
+Build:Nov  1 2022
+`;
+
 const params: DecodeTestParams[] = [
   {
     input: esp32c3Input,
@@ -213,6 +233,33 @@ const params: DecodeTestParams[] = [
         },
         {
           address: '0x4c1c0042',
+          line: '??',
+        },
+      ],
+      allocLocation: undefined,
+    },
+  },
+  {
+    input: esp32h2Input,
+    fqbn: 'esp32:esp32:esp32h2',
+    sketchPath: path.join(sketchesPath, 'AE'),
+    additionalPropsToCopy: ['runtime.tools.riscv32-esp-elf-gdb.path'],
+    expected: {
+      exception: ['Breakpoint', 3],
+      registerLocations: {
+        MEPC: '0x42000054',
+        MTVAL: '0x00009002',
+      },
+      stacktraceLines: [
+        {
+          method: 'loop',
+          address: '??',
+          line: '7',
+          args: {},
+          file: path.join(sketchesPath, 'AE/AE.ino'),
+        },
+        {
+          address: '0x6c1b0042',
           line: '??',
         },
       ],
