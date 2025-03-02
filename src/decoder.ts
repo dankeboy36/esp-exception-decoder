@@ -497,10 +497,10 @@ async function findToolPath(
     }
     const toolPath = path.join(value, 'bin', gdb);
     if (await access(toolPath)) {
-      debug(`gdb found at: ${toolPath}`);
+      debug(`[${key}] gdb found at: ${toolPath}`);
       return toolPath;
     }
-    debug(`gdb not found at: ${toolPath}`);
+    debug(`[${key}] gdb not found at: ${toolPath}`);
   };
 
   // `runtime.tools.*` won't work for ESP32 installed from Git. See https://github.com/arduino/arduino-cli/issues/2197#issuecomment-1572921357.
