@@ -2,86 +2,107 @@ import { before } from 'mocha';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import type { ArduinoState } from 'vscode-arduino-api';
-import { createDecodeParams, decode, ParsedGDBLine } from '../../decoder';
+import {
+  __tests,
+  createDecodeParams,
+  decode,
+  ParsedGDBLine,
+} from '../../decoder';
 import { run } from '../../utils';
 import type { TestEnv } from '../testEnv';
 import { esp32c3Input } from './riscv.test';
 
 const sketchesPath = path.join(__dirname, '../../../src/test/sketches/');
-const riscv1SketchPath = path.join(sketchesPath, 'riscv_1');
+
+const defaultPropsToCopy = [__tests.buildTarch, __tests.buildTarget];
+
+interface CreateArduinoStateParams {
+  testEnv: TestEnv;
+  fqbn: string;
+  sketchPath: string;
+  additionalPropsToCopy?: string[];
+}
+
+async function createArduinoState(
+  params: CreateArduinoStateParams
+): Promise<ArduinoState> {
+  const { testEnv, fqbn, sketchPath, additionalPropsToCopy } = params;
+  const { cliPath } = testEnv.cliContext;
+  const { cliConfigPath } = testEnv.toolsEnvs.cli;
+  const [boardDetailsStdout, compileStdout] = await Promise.all([
+    run(cliPath, [
+      'board',
+      'details',
+      '-b',
+      fqbn,
+      '--config-file',
+      cliConfigPath,
+      '--format',
+      'json',
+    ]),
+    run(cliPath, [
+      'compile',
+      sketchPath,
+      '-b',
+      fqbn,
+      '--config-file',
+      cliConfigPath,
+      '--format',
+      'json',
+    ]),
+  ]);
+
+  const cliBoardDetails = JSON.parse(boardDetailsStdout);
+  const cliCompileSummary = JSON.parse(compileStdout);
+
+  const propsToCopy = [...defaultPropsToCopy, ...(additionalPropsToCopy ?? [])];
+  const buildProperties: Record<string, string> = {};
+  for (const entry of cliBoardDetails.build_properties) {
+    const [key, value] = entry.split('=');
+    if (propsToCopy.includes(key)) {
+      buildProperties[key] = value;
+    }
+  }
+
+  return {
+    fqbn,
+    sketchPath,
+    boardDetails: {
+      fqbn,
+      programmers: [],
+      toolsDependencies: [],
+      configOptions: [],
+      buildProperties,
+    },
+    compileSummary: {
+      buildPath: cliCompileSummary.builder_result.build_path,
+      buildProperties: {},
+      usedLibraries: [],
+      executableSectionsSize: [],
+      boardPlatform: undefined,
+      buildPlatform: undefined,
+    },
+    dataDirPath: testEnv.toolsEnvs['cli'].dataDirPath,
+    userDirPath: testEnv.toolsEnvs['cli'].userDirPath,
+    port: undefined,
+  };
+}
 
 describe('riscv (slow)', () => {
   const fqbn = 'esp32:esp32:esp32c3';
+  const riscv1SketchPath = path.join(sketchesPath, 'riscv_1');
   let testEnv: TestEnv;
   let arduinoState: ArduinoState;
 
   before(async function () {
     testEnv = this.currentTest?.ctx?.['testEnv'];
     assert.notEqual(testEnv, undefined);
-
-    const { cliPath } = testEnv.cliContext;
-    const { cliConfigPath } = testEnv.toolsEnvs.cli;
-    const [boardDetailsStdout, compileStdout] = await Promise.all([
-      run(cliPath, [
-        'board',
-        'details',
-        '-b',
-        fqbn,
-        '--config-file',
-        cliConfigPath,
-        '--format',
-        'json',
-      ]),
-      run(cliPath, [
-        'compile',
-        riscv1SketchPath,
-        '-b',
-        fqbn,
-        '--config-file',
-        cliConfigPath,
-        '--format',
-        'json',
-      ]),
-    ]);
-
-    const cliBoardDetails = JSON.parse(boardDetailsStdout);
-    const cliCompileSummary = JSON.parse(compileStdout);
-
-    const propsToCopy = [
-      'build.tarch',
-      'build.target',
-      'runtime.tools.riscv32-esp-elf-gdb.path',
-    ];
-    const buildProperties: Record<string, string> = {};
-    for (const entry of cliBoardDetails.build_properties) {
-      const [key, value] = entry.split('=');
-      if (propsToCopy.includes(key)) {
-        buildProperties[key] = value;
-      }
-    }
-
-    arduinoState = {
-      boardDetails: {
-        fqbn,
-        programmers: [],
-        toolsDependencies: [],
-        configOptions: [],
-        buildProperties,
-      },
-      compileSummary: {
-        buildPath: cliCompileSummary.builder_result.build_path,
-        buildProperties: {},
-        usedLibraries: [],
-        executableSectionsSize: [],
-        boardPlatform: undefined,
-        buildPlatform: undefined,
-      },
-      dataDirPath: testEnv.toolsEnvs['cli'].dataDirPath,
-      userDirPath: testEnv.toolsEnvs['cli'].userDirPath,
-      port: undefined,
-      fqbn: 'esp32:esp32:esp32c3',
+    arduinoState = await createArduinoState({
+      testEnv,
+      fqbn,
       sketchPath: riscv1SketchPath,
-    };
+      additionalPropsToCopy: ['runtime.tools.riscv32-esp-elf-gdb.path'],
+    });
   });
 
   it('should decode', async () => {

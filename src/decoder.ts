@@ -612,4 +612,6 @@ export const __tests = {
   parseRegisters,
   exceptions,
   fixWindowsPath,
+  buildTarch,
+  buildTarget,
 } as const;
