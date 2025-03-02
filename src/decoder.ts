@@ -113,8 +113,8 @@ export const defaultDecodeOptions = {
 } as const;
 
 export interface GDBLine {
-  readonly address: string;
-  readonly line: string;
+  address: string;
+  line: string;
 }
 export function isGDBLine(arg: unknown): arg is GDBLine {
   return (
@@ -127,9 +127,9 @@ export function isGDBLine(arg: unknown): arg is GDBLine {
 }
 
 export interface ParsedGDBLine extends GDBLine {
-  readonly file: string;
-  readonly method: string;
-  readonly args?: Readonly<Record<string, string>>; // TODO: ask community if useful
+  file: string;
+  method: string;
+  args?: Readonly<Record<string, string>>; // TODO: ask community if useful
 }
 export function isParsedGDBLine(gdbLine: GDBLine): gdbLine is ParsedGDBLine {
   return (
@@ -193,12 +193,24 @@ export async function decode(
 }
 
 function fixWindowsPaths(result: DecodeResult): DecodeResult {
+  const [location] = result.allocLocation ?? [];
+  if (location && isGDBLine(location) && isParsedGDBLine(location)) {
+    location.file = fixWindowsPath(location.file);
+  }
   return {
     ...result,
     stacktraceLines: result.stacktraceLines.map((gdbLine) =>
       isParsedGDBLine(gdbLine)
         ? { ...gdbLine, file: fixWindowsPath(gdbLine.file) }
         : gdbLine
+    ),
+    registerLocations: Object.fromEntries(
+      Object.entries(result.registerLocations).map(([key, value]) => [
+        key,
+        isGDBLine(value) && isParsedGDBLine(value)
+          ? { ...value, line: fixWindowsPath(value.line) }
+          : value,
+      ])
     ),
   };
 }
