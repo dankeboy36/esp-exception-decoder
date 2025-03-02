@@ -81,7 +81,7 @@ function describeFindToolSuite(params: FindToolTestParams): Suite {
       .map((boardId) => ({ fqbn: `${platformId}:${boardId}`, boardId }))
       .map(({ fqbn, boardId }) =>
         it(`should find the tool path for '${fqbn}'`, async function () {
-          this.slow(1_000);
+          this.slow(10_000);
           const { cliContext, toolsEnvs } = testEnv;
           const boardDetails = await getBoardDetails(
             cliContext,
@@ -161,7 +161,7 @@ function describeDecodeSuite(params: DecodeTestParams): Suite {
     });
 
     it('should decode', async function () {
-      this.slow(1_000);
+      this.slow(10_000);
       const params = await createDecodeParams(arduinoState);
       const actual = await decode(params, input);
       assertDecodeResult(actual, expected);
