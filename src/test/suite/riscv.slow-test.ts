@@ -1,7 +1,7 @@
 import { before } from 'mocha';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { ArduinoState } from 'vscode-arduino-api';
+import type { ArduinoState } from 'vscode-arduino-api';
 import { createDecodeParams, decode, ParsedGDBLine } from '../../decoder';
 import { run } from '../../utils';
 import type { TestEnv } from '../testEnv';
