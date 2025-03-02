@@ -285,12 +285,12 @@ describe('decoder', () => {
   });
 
   describe('parseStacktrace', () => {
-    it('should parse ESP8266 content', () => {
+    it('should parse multiline ESP8266 content', () => {
       const actual = parseStacktrace(esp8266Input);
       assert.strictEqual(actual, esp8266Content);
     });
 
-    it('should parse ESP32 content', () => {
+    it('should parse single-line ESP32 content', () => {
       [
         [esp32AbortInput, esp32AbortContent],
         [esp32PanicInput, esp32PanicContent],
