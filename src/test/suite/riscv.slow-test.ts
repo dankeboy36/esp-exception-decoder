@@ -7,7 +7,8 @@ import {
   createDecodeParams,
   decode,
   DecodeResult,
-  isParsedGDBLine,
+  GDBLine,
+  Location,
   ParsedGDBLine,
 } from '../../decoder';
 import { run } from '../../utils';
@@ -96,7 +97,9 @@ function describeSuite(params: DecodeTestParams) {
   let testEnv: TestEnv;
   let arduinoState: ArduinoState;
 
-  return describe(`decode '${basename(sketchPath)} sketch on ${fqbn}`, () => {
+  return describe(`decode '${basename(
+    sketchPath
+  )}' sketch on '${fqbn}'`, () => {
     before(async function () {
       testEnv = this.currentTest?.ctx?.['testEnv'];
       assert.notEqual(testEnv, undefined);
@@ -143,7 +146,7 @@ function createAssertDecodeResult(expectedSketchPath: string) {
     `${path.basename(expectedSketchPath)}.ino`
   );
 
-  return (actual: DecodeResult, expected: DecodeResult) => {
+  return (actual: DecodeResult, expected: DecodeResultMatcher) => {
     assert.deepStrictEqual(actual.exception, expected.exception);
     assert.deepStrictEqual(
       actual.registerLocations,
@@ -158,28 +161,41 @@ function createAssertDecodeResult(expectedSketchPath: string) {
     for (let i = 0; i < actual.stacktraceLines.length; i++) {
       const actualLine = actual.stacktraceLines[i];
       const expectedLine = expected.stacktraceLines[i];
-      if (isParsedGDBLine(expectedLine)) {
-        assertObjectContains(actualLine, {
-          method: expectedLine.method,
-          address: expectedLine.address,
-          line: expectedLine.line,
-          args: expectedLine.args,
-        });
+      if (!('file' in expectedLine)) {
+        assert.deepStrictEqual(actualLine, expectedLine);
+        continue;
+      }
 
+      assertObjectContains(actualLine, {
+        method: expectedLine.method,
+        address: expectedLine.address,
+        line: expectedLine.line,
+        args: expectedLine.args,
+      });
+
+      if (typeof expectedLine.file === 'function') {
+        const assertFile = expectedLine.file;
+        assert.ok(assertFile((<ParsedGDBLine>actualLine).file));
+      } else {
         assert.strictEqual(
           driveLetterToLowerCaseIfWin32((<ParsedGDBLine>actualLine).file),
           driveLetterToLowerCaseIfWin32(expectedSketchFile)
         );
-      } else {
-        assert.deepStrictEqual(actualLine, expectedLine);
       }
     }
   };
 }
 
+type GDBLineMatcher = Omit<ParsedGDBLine, 'file'> & {
+  file: (actualFile: string) => boolean;
+};
+type DecodeResultMatcher = Omit<DecodeResult, 'stacktraceLines'> & {
+  stacktraceLines: (GDBLine | ParsedGDBLine | GDBLineMatcher)[];
+};
+
 interface DecodeTestParams extends Omit<CreateArduinoStateParams, 'testEnv'> {
   input: string;
-  expected: DecodeResult;
+  expected: DecodeResultMatcher;
 }
 
 const esp32h2Input = `Guru Meditation Error: Core  0 panic'ed (Breakpoint). Exception was unhandled.
@@ -201,6 +217,19 @@ Stack memory:
 40816b10: 0x00000000 0x00000000 0ESP-ROM:esp32h2-20221101
 Build:Nov  1 2022
 `;
+
+const esp32WroomDaInput = `Guru Meditation Error: Core  1 panic'ed (Unhandled debug exception). 
+Debug exception reason: BREAK instr 
+Core  1 register dump:
+PC      : 0x400d15af  PS      : 0x00060536  A0      : 0x800d2f9b  A1      : 0x3ffb2250  
+A2      : 0x00000000  A3      : 0x00000003  A4      : 0x00000001  A5      : 0xffffffff  
+A6      : 0xffffffff  A7      : 0x00000020  A8      : 0x800d15af  A9      : 0x3ffb2230  
+A10     : 0x00002710  A11     : 0x00002580  A12     : 0x00000000  A13     : 0x00002580  
+A14     : 0x00000001  A15     : 0x00000001  SAR     : 0x0000000c  EXCCAUSE: 0x00000001  
+EXCVADDR: 0x00000000  LBEG    : 0x40085ce8  LEND    : 0x40085cf3  LCOUNT  : 0xffffffff  
+
+
+Backtrace: 0x400d15ac:0x3ffb2250 0x400d2f98:0x3ffb2270 0x40088be9:0x3ffb2290`;
 
 const params: DecodeTestParams[] = [
   {
@@ -265,6 +294,45 @@ const params: DecodeTestParams[] = [
       ],
       allocLocation: undefined,
     },
+  },
+  {
+    input: esp32WroomDaInput,
+    fqbn: 'esp32:esp32:esp32da',
+    expected: {
+      exception: undefined,
+      registerLocations: {
+        PC: <Location>{
+          address: '0x400d15af',
+          method: 'loop()',
+          file: path.join(sketchesPath, 'AE/AE.ino'),
+          line: '7',
+        },
+        EXCVADDR: '0x00000000',
+      },
+      stacktraceLines: [
+        {
+          address: '0x400d15ac',
+          method: 'loop()',
+          file: path.join(sketchesPath, 'AE/AE.ino'),
+          line: '6',
+        },
+        {
+          address: '0x400d2f98',
+          method: 'loopTask(void*)',
+          file: (actualFile) => actualFile.endsWith('main.cpp'),
+          line: '74',
+        },
+        {
+          address: '0x40088be9',
+          method: 'vPortTaskWrapper',
+          file: (actualFile) => actualFile.endsWith('port.c'),
+          line: '139',
+        },
+      ],
+      allocLocation: undefined,
+    },
+    sketchPath: path.join(sketchesPath, 'AE'),
+    additionalPropsToCopy: ['runtime.tools.xtensa-esp-elf-gdb.path'],
   },
 ];
 
