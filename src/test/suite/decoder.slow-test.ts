@@ -212,7 +212,11 @@ function assertLocationEquals(actual: Location, expected: LocationMatcher) {
 
   if (typeof expected.file === 'function') {
     const assertFile = expected.file;
-    assert.ok(assertFile((<ParsedGDBLine>actual).file));
+    const actualFile = (<ParsedGDBLine>actual).file;
+    assert.ok(
+      assertFile(actualFile),
+      `${actualFile} did not pass the assertion`
+    );
   } else {
     assert.strictEqual(
       driveLetterToLowerCaseIfWin32((<ParsedGDBLine>actual).file),
@@ -285,18 +289,18 @@ Stack memory:
 Build:Nov  1 2022
 `;
 
-const esp32WroomDaInput = `Guru Meditation Error: Core  1 panic'ed (Unhandled debug exception). 
-Debug exception reason: BREAK instr 
+const esp32WroomDaInput = `Guru Meditation Error: Core  1 panic'ed (StoreProhibited). Exception was unhandled.
+
 Core  1 register dump:
-PC      : 0x400d15af  PS      : 0x00060536  A0      : 0x800d2f9b  A1      : 0x3ffb2250  
-A2      : 0x00000000  A3      : 0x00000003  A4      : 0x00000001  A5      : 0xffffffff  
-A6      : 0xffffffff  A7      : 0x00000020  A8      : 0x800d15af  A9      : 0x3ffb2230  
-A10     : 0x00002710  A11     : 0x00002580  A12     : 0x00000000  A13     : 0x00002580  
-A14     : 0x00000001  A15     : 0x00000001  SAR     : 0x0000000c  EXCCAUSE: 0x00000001  
-EXCVADDR: 0x00000000  LBEG    : 0x40085ce8  LEND    : 0x40085cf3  LCOUNT  : 0xffffffff  
+PC      : 0x400d15f1  PS      : 0x00060b30  A0      : 0x800d1609  A1      : 0x3ffb21d0  
+A2      : 0x0000002a  A3      : 0x3f40018f  A4      : 0x00000020  A5      : 0x0000ff00  
+A6      : 0x00ff0000  A7      : 0x00000022  A8      : 0x00000000  A9      : 0x3ffb21b0  
+A10     : 0x0000002c  A11     : 0x3f400164  A12     : 0x00000022  A13     : 0x0000ff00  
+A14     : 0x00ff0000  A15     : 0x0000002a  SAR     : 0x0000000c  EXCCAUSE: 0x0000001d  
+EXCVADDR: 0x00000000  LBEG    : 0x40086161  LEND    : 0x40086171  LCOUNT  : 0xfffffff5  
 
 
-Backtrace: 0x400d15ac:0x3ffb2250 0x400d2f98:0x3ffb2270 0x40088be9:0x3ffb2290`;
+Backtrace: 0x400d15ee:0x3ffb21d0 0x400d1606:0x3ffb21f0 0x400d15da:0x3ffb2210 0x400d15c1:0x3ffb2240 0x400d302a:0x3ffb2270 0x40088be9:0x3ffb2290`;
 
 const esp8266Input = `Exception (28):
 epc1=0x4020107b epc2=0x00000000 epc3=0x00000000 excvaddr=0x00000000 depc=0x00000000
@@ -395,29 +399,66 @@ const decodeTestParams: DecodeTestParams[] = [
       exception: undefined,
       registerLocations: {
         PC: {
-          address: '0x400d15af',
-          method: 'loop()',
+          address: '0x400d15f1',
+          method: 'functionC(int)',
           file: (actualFile) =>
             driveLetterToLowerCaseIfWin32(actualFile) ===
-            driveLetterToLowerCaseIfWin32(path.join(sketchesPath, 'AE/AE.ino')),
-          line: '7',
+            driveLetterToLowerCaseIfWin32(
+              path.join(sketchesPath, 'esp32backtracetest/module2.cpp')
+            ),
+          line: '9',
         },
         EXCVADDR: '0x00000000',
       },
       stacktraceLines: [
         {
-          address: '0x400d15ac',
-          method: 'loop()',
+          address: '0x400d15ee',
+          method: 'functionC(int)',
           file: (actualFile) =>
             driveLetterToLowerCaseIfWin32(actualFile) ===
-            driveLetterToLowerCaseIfWin32(path.join(sketchesPath, 'AE/AE.ino')),
-          line: '6',
+            driveLetterToLowerCaseIfWin32(
+              path.join(sketchesPath, 'esp32backtracetest/module2.cpp')
+            ),
+          line: '9',
         },
         {
-          address: '0x400d2f98',
+          address: '0x400d1606',
+          method: 'functionB(int*)',
+          file: (actualFile) =>
+            driveLetterToLowerCaseIfWin32(actualFile) ===
+            driveLetterToLowerCaseIfWin32(
+              path.join(sketchesPath, 'esp32backtracetest/module2.cpp')
+            ),
+          line: '14',
+        },
+        {
+          address: '0x400d15da',
+          method: 'functionA(int)',
+          file: (actualFile) =>
+            driveLetterToLowerCaseIfWin32(actualFile) ===
+            driveLetterToLowerCaseIfWin32(
+              path.join(sketchesPath, 'esp32backtracetest/module1.cpp')
+            ),
+          line: '7',
+        },
+        {
+          address: '0x400d15c1',
+          method: 'setup()',
+          file: (actualFile) =>
+            driveLetterToLowerCaseIfWin32(actualFile) ===
+            driveLetterToLowerCaseIfWin32(
+              path.join(
+                sketchesPath,
+                'esp32backtracetest/esp32backtracetest.ino'
+              )
+            ),
+          line: '8',
+        },
+        {
+          address: '0x400d302a',
           method: 'loopTask(void*)',
           file: (actualFile) => actualFile.endsWith('main.cpp'),
-          line: '74',
+          line: '59',
         },
         {
           address: '0x40088be9',
@@ -428,7 +469,7 @@ const decodeTestParams: DecodeTestParams[] = [
       ],
       allocLocation: undefined,
     },
-    sketchPath: path.join(sketchesPath, 'AE'),
+    sketchPath: path.join(sketchesPath, 'esp32backtracetest'),
   },
   {
     skip,
