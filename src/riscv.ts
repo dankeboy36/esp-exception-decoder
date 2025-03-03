@@ -220,7 +220,9 @@ function parsePanicOutput({
     input,
     target,
   });
-
+  if (regDumps.length === 0) {
+    throw new Error('No register dumps found');
+  }
   if (regDumps.length > 1) {
     throw new Error('Handling of multi-core register dumps not implemented');
   }

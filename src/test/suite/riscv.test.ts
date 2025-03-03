@@ -300,6 +300,21 @@ Stack memory:
       );
     });
 
+    it('should handle incomplete panic info (for example, __attribute__((noinline)))', () => {
+      assert.throws(
+        () =>
+          parsePanicOutput({
+            input: `MSTATUS : 0x00001881  MTVEC   : 0x40800001  MCAUSE  : 0x00000007  MTVAL   : 0x00000000  
+MHARTID : 0x00000000  
+
+Stack memory:
+40816ac0: 0x00000000 0x00000000 0xa0000000 0x420000cc 0x00000000 0x20001090 0x00000000 0x42000088`,
+            target: 'esp32h2',
+          }),
+        /no register dumps found/gi
+      );
+    });
+
     it('should parse the panic output', () => {
       const result = parsePanicOutput({
         input: esp32c3Input,
