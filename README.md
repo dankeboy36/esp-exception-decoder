@@ -4,82 +4,85 @@
 
 > ⚠️ This project is in an early state.
 
-[Arduino IDE](https://github.com/arduino/arduino-ide/) extension lets you get a more meaningful explanation of the stack traces and backtraces you get on ESP8266/ESP32. This extension is the reimplementation of the famous [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder) tool, written in Java.
+[Arduino IDE](https://github.com/arduino/arduino-ide/) extension allows you to get a more meaningful explanation of the stack traces and backtraces you encounter on ESP8266/ESP32. This extension is a reimplementation of the well-known [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder) tool, which was originally written in Java. The RISC-V decoder implementation was ported from [`esp_idf_monitor`](https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py).
 
 ![ESP8266/ESP32 Exception Decoder Extension](./images/espExceptionDecoder_main.png)
 
-> ⚠️ This extension has nothing to do with the [Visual Studio Code extension for Arduino](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.vscode-arduino). This extension does not work in VS Code.
+> ⚠️ This extension is not related to the [Visual Studio Code extension for Arduino](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.vscode-arduino). Please note that this extension does not work in VS Code.
 
 ## Installation
 
-- Download the latest extension from the GitHub [release page](https://github.com/dankeboy36/esp-exception-decoder/releases/latest). The asset filename is `esp-exception-decoder-${VERSION}.vsix`, where `${VERSION}` is the latest version.
-- When the Arduino IDE is not running, copy the downloaded extension into the folder named `plugins` folder under Arduino IDE's configuration folder. If the `plugins` folder does not exist, create it.
-  - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (which is typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
-  - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
-    > ℹ️ If you get stuck, follow the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation of the Arduino IDE _3rd party themes_. The procedure is the same.
+1. Download the latest extension from the GitHub [release page](https://github.com/dankeboy36/esp-exception-decoder/releases/latest). The filename should be `esp-exception-decoder-${VERSION}.vsix`, where `${VERSION}` is the latest version.
+2. Make sure the Arduino IDE is not running. Then, copy the downloaded extension into the `plugins` folder located in the Arduino IDE's configuration directory. If the `plugins` folder does not exist, create it.
+   - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
+   - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
+     > **ⓘ** If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
+
+### Update
+
+To update to the latest or a more recent version of the decoder extension, simply copy the new version file into the same `plugins` folder alongside the current version. The Arduino IDE will automatically use the most recent version of the extension. If desired, you can delete the older version to keep your plugins folder organized.
 
 ## Usage
 
-- Open a sketch in the Arduino IDE and verify it.
-- Upload the sketch to an ESP8266/ESP32 board.
-- Open the _Serial Monitor_ view and monitor the output for exceptions.
-- When you get an exception, open the _Exception Decoder_ terminal:
-  - Open the _Command Palette_ with <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>,
-  - Type `ESP Exception Decoder: Show Decoder Terminal` and
-  - Press <kbd>Enter</kbd>.
-- Copy the exception stack trace/backtrace from the _Serial Monitor_ view.
-- Paste the stack trace/backtrace to the _Exception Decoder_ terminal.
-  > ℹ️ See more on copy and paste in the terminal [here](https://code.visualstudio.com/docs/terminal/basics#_copy-paste).
+1. Open a sketch in the Arduino IDE and verify it.
+2. Upload the sketch to your ESP8266/ESP32 board.
+3. Open the _Serial Monitor_ view to monitor the output for exceptions.
+4. When an exception occurs, open the _Exception Decoder_ terminal:
+   - Open the _Command Palette_ using <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
+   - Type `ESP Exception Decoder: Show Decoder Terminal` and press <kbd>Enter</kbd>.
+5. Copy the exception stack trace/backtrace from the _Serial Monitor_ view.
+6. Paste the stack trace/backtrace into the _Exception Decoder_ terminal.
+   > **ⓘ** For more details on copying and pasting in the terminal, check [here](https://code.visualstudio.com/docs/terminal/basics#_copy-paste).
 
 ![ESP Exception Decoder in Action](./images/espExceptionDecoder_main.gif)
 
 ### Hints
 
-1.  You can enable blinking cursors in the decoder terminal with the [`"terminal.integrated.cursorBlinking": true`](https://code.visualstudio.com/docs/terminal/appearance#_terminal-cursor) setting.
-1.  The `"terminal.enablePaste": true` setting enables pasting to the decoder terminal with the keyboard.
-1.  You can tune the terminal font size with the setting [`"terminal.integrated.fontSize": 12`](https://code.visualstudio.com/docs/terminal/appearance#_text-style).
+- Enable blinking cursors in the decoder terminal by setting [`"terminal.integrated.cursorBlinking": true`](https://code.visualstudio.com/docs/terminal/appearance#_terminal-cursor).
+- Allow pasting in the decoder terminal by setting `"terminal.enablePaste": true`.
+- Adjust the terminal font size with the setting [`"terminal.integrated.fontSize": 12`](https://code.visualstudio.com/docs/terminal/appearance#_text-style).
 
-    > ℹ️ Reference the [_Advanced settings_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#advanced-settings) documentation of the Arduino IDE for more details.
+  > **ⓘ** Refer to the [_Advanced settings_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#advanced-settings) documentation of the Arduino IDE for more details.
 
-    > ⚠️ Customizing the terminal colors with the [`workbench.colorCustomizations`](https://code.visualstudio.com/docs/terminal/appearance#_terminal-colors) setting is yet to be supported by Eclipse Theia ([eclipse-theia/theia#8060](https://github.com/eclipse-theia/theia/issues/8060)). Hence, this feature is missing from the Arduino IDE.
+  > ⚠️ Customizing terminal colors with the [`workbench.colorCustomizations`](https://code.visualstudio.com/docs/terminal/appearance#_terminal-colors) setting is currently unsupported in Eclipse Theia ([eclipse-theia/theia#8060](https://github.com/eclipse-theia/theia/issues/8060)). Therefore, this feature is missing from the Arduino IDE.
 
-    > ⚠️ Arduino IDE has to support the path links that contain spaces in the decoder terminal. ([eclipse-theia/theia#12643](https://github.com/eclipse-theia/theia/issues/12643))
+  > ⚠️ Arduino IDE must support path links that contain spaces in the decoder terminal. ([eclipse-theia/theia#12643](https://github.com/eclipse-theia/theia/issues/12643))
 
-    > ⚠️ [`terminal.integrated.rightClickBehavior`](https://code.visualstudio.com/docs/terminal/basics#_rightclick-behavior) is unsupported in Arduino IDE. ([eclipse-theia/theia#12644](https://github.com/eclipse-theia/theia/issues/12644))
+  > ⚠️ [`terminal.integrated.rightClickBehavior`](https://code.visualstudio.com/docs/terminal/basics#_rightclick-behavior) is not supported in the Arduino IDE. ([eclipse-theia/theia#12644](https://github.com/eclipse-theia/theia/issues/12644))
 
 ## Development
 
-1. Install the dependencies
+1. Install the dependencies:
 
    ```sh
    npm i
    ```
 
-   > ⚠️ You need Node.js `>=16.14.0`.
+   > ⚠️ You need Node.js version `>=16.14.0`.
 
-1. Build the extension
+2. Build the extension:
 
    ```sh
    npm run compile
    ```
 
-   > ℹ️ Execute `npm run package` if you want to bundle the VSIX for production.
+   > **ⓘ** Use `npm run package` to bundle the VSIX for production.
 
-1. Test the extension
+3. Test the extension:
 
    ```sh
    npm run test
    ```
 
-   > ℹ️ You can run the _slow_ test with the `npm run test-slow` and all the tests with the `npm run test-all` command.
+   > **ⓘ** You can run the _slow_ test with `npm run test-slow` and all tests with `npm run test-all`.
 
 ## Hints
 
-- If you use VS Code for development, you can use the predefined _Launch Configurations_ to debug the extensions and the tests. See how to [test VS Code extensions](https://code.visualstudio.com/api/working-with-extensions/testing-extension).
-- This extension uses the [`vscode-arduino-api`](https://github.com/dankeboy36/vscode-arduino-api/) to communicate with the Arduino IDE.
-- This extension was built from the [`helloworld`](https://code.visualstudio.com/api/get-started/your-first-extension) VS Code extension template.
+- If you are using VS Code for development, you can take advantage of predefined _Launch Configurations_ to debug the extensions and tests. For guidance on how to [test VS Code extensions](https://code.visualstudio.com/api/working-with-extensions/testing-extension), see the documentation.
+- This extension utilizes the [`vscode-arduino-api`](https://github.com/dankeboy36/vscode-arduino-api/) to communicate with the Arduino IDE.
+- The extension was created from the [`helloworld`](https://code.visualstudio.com/api/get-started/your-first-extension) VS Code extension template.
 
 ## Acknowledgments
 
-- [@per1234](https://github.com/per1234) for his tireless contribution to open source.
-- [@me-no-dev](https://github.com/me-no-dev) for the [original implementation](https://github.com/me-no-dev/EspExceptionDecoder).
+- Special thanks to [@per1234](https://github.com/per1234) for his dedication to open-source contributions.
+- Thanks to [@me-no-dev](https://github.com/me-no-dev) for the [original implementation](https://github.com/me-no-dev/EspExceptionDecoder).

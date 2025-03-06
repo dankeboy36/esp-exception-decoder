@@ -74,3 +74,10 @@ export async function access(
     return undefined;
   }
 }
+
+export class AbortError extends Error {
+  constructor() {
+    super('User abort');
+    this.name = 'AbortError';
+  }
+}

@@ -6,14 +6,15 @@ import type {
   BoardDetails,
   BuildProperties,
 } from 'vscode-arduino-api';
-import { Debug, access, isWindows, neverSignal, run } from './utils';
+import { decodeRiscv, InvalidTargetError } from './riscv';
+import { access, Debug, isWindows, neverSignal, run } from './utils';
 
 const decoderDebug: Debug = debug('espExceptionDecoder:decoder');
 
 export interface DecodeParams {
   readonly toolPath: string;
   readonly elfPath: string;
-  readonly fqbn: string; // UI
+  readonly fqbn: FQBN;
   readonly sketchPath: string; // UI
 }
 
@@ -39,13 +40,13 @@ export async function createDecodeParams(
   if (!boardDetails) {
     throw new DecodeParamsError(
       `Platform '${vendor}:${arch}' is not installed`,
-      { sketchPath, fqbn: fqbn.toString() }
+      { sketchPath, fqbn }
     );
   }
   if (!supportedArchitectures.has(fqbn.arch)) {
     throw new DecodeParamsError(`Unsupported board: '${fqbn}'`, {
       sketchPath,
-      fqbn: fqbn.toString(),
+      fqbn,
     });
   }
   if (!compileSummary) {
@@ -53,7 +54,7 @@ export async function createDecodeParams(
       'The summary of the previous compilation is unavailable. Compile the sketch',
       {
         sketchPath,
-        fqbn: fqbn.toString(),
+        fqbn,
       }
     );
   }
@@ -67,19 +68,19 @@ export async function createDecodeParams(
   if (!elfPath) {
     throw new DecodeParamsError(
       `Could not detect the '.elf' file in the build folder`,
-      { sketchPath, fqbn: fqbn.toString() }
+      { sketchPath, fqbn }
     );
   }
   if (!toolPath) {
     throw new DecodeParamsError('Could not detect the GDB tool path', {
       sketchPath,
-      fqbn: fqbn.toString(),
+      fqbn,
     });
   }
   return {
     toolPath,
     elfPath,
-    fqbn: fqbn.toString(),
+    fqbn,
     sketchPath,
   };
 }
@@ -94,7 +95,7 @@ export class DecodeParamsError extends Error {
   }
 
   get fqbn(): string {
-    return this.partial.fqbn;
+    return this.partial.fqbn.toString();
   }
 
   get sketchPath(): string {
@@ -112,8 +113,8 @@ export const defaultDecodeOptions = {
 } as const;
 
 export interface GDBLine {
-  readonly address: string;
-  readonly line: string;
+  address: string;
+  line: string;
 }
 export function isGDBLine(arg: unknown): arg is GDBLine {
   return (
@@ -126,8 +127,9 @@ export function isGDBLine(arg: unknown): arg is GDBLine {
 }
 
 export interface ParsedGDBLine extends GDBLine {
-  readonly file: string;
-  readonly method: string;
+  file: string;
+  method: string;
+  args?: Readonly<Record<string, string>>; // TODO: ask community if useful
 }
 export function isParsedGDBLine(gdbLine: GDBLine): gdbLine is ParsedGDBLine {
   return (
@@ -145,12 +147,12 @@ export type Address = string;
 /**
  * Successfully decoded register address, or the address.
  */
-export type Location = GDBLine | Address;
+export type Location = GDBLine | ParsedGDBLine | Address;
 
 export interface DecodeResult {
   readonly exception: [message: string, code: number] | undefined;
   readonly registerLocations: Record<string, Location>;
-  readonly stacktraceLines: GDBLine[];
+  readonly stacktraceLines: (GDBLine | ParsedGDBLine)[];
   readonly allocLocation: [location: Location, size: number] | undefined;
 }
 
@@ -159,19 +161,73 @@ export async function decode(
   input: string,
   options: DecodeOptions = defaultDecodeOptions
 ): Promise<DecodeResult> {
-  const [exception, registerLocations, stacktraceLocations, allocLocation] =
-    await Promise.all([
-      parseException(input),
-      decodeRegisters(params, input, options),
-      decodeStacktrace(params, input, options),
-      decodeAlloc(params, input, options),
-    ]);
+  let result: DecodeResult | undefined;
+  try {
+    result = await decodeRiscv(params, input, options);
+  } catch (err) {
+    if (err instanceof InvalidTargetError) {
+      // try ESP32/ESP8266
+    } else {
+      throw err;
+    }
+  }
+
+  if (!result) {
+    const [exception, registerLocations, stacktraceLines, allocLocation] =
+      await Promise.all([
+        parseException(input),
+        decodeRegisters(params, input, options),
+        decodeStacktrace(params, input, options),
+        decodeAlloc(params, input, options),
+      ]);
+
+    result = {
+      exception,
+      registerLocations,
+      stacktraceLines,
+      allocLocation,
+    };
+  }
+
+  return fixWindowsPaths(result);
+}
+
+function fixWindowsPaths(
+  result: DecodeResult,
+  isWindows = process.platform === 'win32'
+): DecodeResult {
+  const [location] = result.allocLocation ?? [];
+  if (location && isGDBLine(location) && isParsedGDBLine(location)) {
+    location.file = fixWindowsPath(location.file, isWindows);
+  }
   return {
-    exception,
-    registerLocations,
-    stacktraceLines: stacktraceLocations,
-    allocLocation,
+    ...result,
+    stacktraceLines: result.stacktraceLines.map((gdbLine) =>
+      isParsedGDBLine(gdbLine)
+        ? { ...gdbLine, file: fixWindowsPath(gdbLine.file, isWindows) }
+        : gdbLine
+    ),
+    registerLocations: Object.fromEntries(
+      Object.entries(result.registerLocations).map(([key, value]) => [
+        key,
+        isGDBLine(value) && isParsedGDBLine(value)
+          ? { ...value, file: fixWindowsPath(value.file, isWindows) }
+          : value,
+      ])
+    ),
   };
+}
+
+// To fix the path separator issue on Windows:
+//      -      "file": "D:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1/riscv_1.ino"
+//      +      "file": "d:\\a\\esp-exception-decoder\\esp-exception-decoder\\src\\test\\sketches\\riscv_1\\riscv_1.ino"
+function fixWindowsPath(
+  path: string,
+  isWindows = process.platform === 'win32'
+): string {
+  return isWindows && /^[a-zA-Z]:\\/.test(path)
+    ? path.replace(/\//g, '\\')
+    : path;
 }
 
 // Taken from https://github.com/me-no-dev/EspExceptionDecoder/blob/ff4fc36bdaf0bfd6e750086ac01554867ede76d3/src/EspExceptionDecoder.java#L59-L90
@@ -458,10 +514,10 @@ async function findToolPath(
     }
     const toolPath = path.join(value, 'bin', gdb);
     if (await access(toolPath)) {
-      debug(`gdb found at: ${toolPath}`);
+      debug(`[${key}] gdb found at: ${toolPath}`);
       return toolPath;
     }
-    debug(`gdb not found at: ${toolPath}`);
+    debug(`[${key}] gdb not found at: ${toolPath}`);
   };
 
   // `runtime.tools.*` won't work for ESP32 installed from Git. See https://github.com/arduino/arduino-cli/issues/2197#issuecomment-1572921357.
@@ -572,4 +628,6 @@ export const __tests = {
   parseAlloc,
   parseRegisters,
   exceptions,
+  fixWindowsPath,
+  fixWindowsPaths,
 } as const;

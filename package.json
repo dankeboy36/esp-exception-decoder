@@ -1,22 +1,9 @@
 {
   "name": "esp-exception-decoder",
   "displayName": "ESP Exception Decoder",
-  "description": "ESP8266/ESP32 Exception Decoder Extension for the Arduino IDE",
   "version": "1.0.2",
   "private": true,
-  "engines": {
-    "vscode": "^1.78.0"
-  },
-  "author": "dankeboy36",
-  "publisher": "dankeboy36",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/dankeboy36/esp-exception-decoder/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/dankeboy36/esp-exception-decoder.git"
-  },
+  "description": "ESP8266/ESP32 Exception Decoder Extension for the Arduino IDE",
   "categories": [
     "Other"
   ],
@@ -26,10 +13,37 @@
     "esp8266-arduino",
     "esp32-arduino"
   ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
+  "bugs": {
+    "url": "https://github.com/dankeboy36/esp-exception-decoder/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dankeboy36/esp-exception-decoder.git"
+  },
+  "license": "MIT",
+  "author": "dankeboy36",
+  "publisher": "dankeboy36",
   "main": "./dist/extension.js",
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "webpack --mode production --devtool hidden-source-map",
+    "clean": "rimraf dist out *.vsix",
+    "compile": "webpack && vsce package",
+    "compile-tests": "tsc -p . --outDir out",
+    "format": "prettier --write .",
+    "lint": "eslint src --ext ts",
+    "prepackage": "npm run build",
+    "package": "vsce package",
+    "release": "semantic-release",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "test": "node ./out/test/runTest.js",
+    "pretest-all": "npm run pretest",
+    "test-all": "node ./out/test/runTest.js --all",
+    "pretest-slow": "npm run pretest",
+    "test-slow": "node ./out/test/runTest.js --slow",
+    "watch": "webpack --watch",
+    "watch-tests": "tsc -p . -w --outDir out"
+  },
   "contributes": {
     "commands": [
       {
@@ -39,25 +53,16 @@
       }
     ]
   },
-  "scripts": {
-    "compile": "webpack && vsce package",
-    "watch": "webpack --watch",
-    "prebuild": "rimraf dist",
-    "build": "webpack --mode production --devtool hidden-source-map",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "test": "node ./out/test/runTest.js",
-    "pretest-slow": "npm run pretest",
-    "test-slow": "node ./out/test/runTest.js --slow",
-    "pretest-all": "npm run pretest",
-    "test-all": "node ./out/test/runTest.js --all",
-    "lint": "eslint src --ext ts",
-    "format": "prettier --write .",
-    "clean": "rimraf dist out *.vsix",
-    "release": "semantic-release"
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "dependencies": {
+    "debug": "^4.3.7",
+    "execa": "^7.1.1",
+    "fqbn": "^1.1.2"
   },
   "devDependencies": {
+    "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^10.0.1",
     "@semantic-release/exec": "^6.0.3",
@@ -68,20 +73,22 @@
     "@types/debug": "^4.1.8",
     "@types/glob": "^8.1.0",
     "@types/mocha": "^10.0.1",
-    "@types/node": "16.x",
+    "@types/node": "20.x",
     "@types/temp": "^0.9.1",
     "@types/vscode": "^1.78.0",
     "@typescript-eslint/eslint-plugin": "^5.59.1",
     "@typescript-eslint/parser": "^5.59.1",
     "@vscode/test-electron": "^2.3.9",
-    "@vscode/vsce": "^3.2.1",
+    "@vscode/vsce": "^3.2.2",
     "eslint": "^8.39.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-prettier": "^4.2.1",
-    "get-arduino-tools": "^1.0.5",
+    "get-arduino-tools": "^1.2.3",
     "glob": "^8.1.0",
     "mocha": "^10.2.0",
+    "nyc": "^15.1.0",
     "prettier": "^2.7.1",
+    "prettier-plugin-packagejson": "^2.5.9",
     "rimraf": "^5.0.1",
     "semantic-release": "^21.0.5",
     "semantic-release-vsce": "^5.6.0",
@@ -89,13 +96,11 @@
     "temp": "^0.9.4",
     "ts-loader": "^9.4.2",
     "typescript": "^5.0.4",
+    "vscode-arduino-api": "^0.1.2",
     "webpack": "^5.81.0",
     "webpack-cli": "^5.0.2"
   },
-  "dependencies": {
-    "debug": "^4.3.7",
-    "execa": "^7.1.1",
-    "fqbn": "^1.1.2",
-    "vscode-arduino-api": "^0.1.2"
+  "engines": {
+    "vscode": "^1.78.0"
   }
 }

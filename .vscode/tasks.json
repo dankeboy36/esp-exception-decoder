@@ -30,6 +30,12 @@
       "label": "tasks: watch-tests",
       "dependsOn": ["npm: watch", "npm: watch-tests"],
       "problemMatcher": []
+    },
+    {
+      // This task expects the arduino-ide repository to be checked out as a sibling folder of this repository.
+      "label": "Update VSIX in Arduino IDE",
+      "type": "shell",
+      "command": "rm -rf ../arduino-ide/electron-app/plugins/esp-exception-decoder-riscv && mkdir -p ../arduino-ide/electron-app/plugins/esp-exception-decoder-riscv && npm run compile && unzip ./esp-exception-decoder-riscv-1.0.3.vsix -d ../arduino-ide/electron-app/plugins/esp-exception-decoder-riscv"
     }
   ]
 }

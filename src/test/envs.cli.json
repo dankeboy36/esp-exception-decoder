@@ -2,7 +2,7 @@
   {
     "vendor": "esp32",
     "arch": "esp32",
-    "version": "2.0.9",
+    "version": "3.1.1",
     "url": "https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json"
   },
   {

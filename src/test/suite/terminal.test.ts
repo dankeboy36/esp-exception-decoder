@@ -1,12 +1,13 @@
+import { FQBN } from 'fqbn';
 import assert from 'node:assert/strict';
-import vscode from 'vscode';
 import path from 'node:path';
+import vscode from 'vscode';
 import { DecodeParamsError, ParsedGDBLine } from '../../decoder';
-import { __test } from '../../terminal';
+import { __tests } from '../../terminal';
 import { mockArduinoContext } from './mock';
 
 const {
-  opeTerminal,
+  openTerminal,
   decodeTerminalTitle,
   stringifyLines,
   stringifyTerminalState,
@@ -15,15 +16,15 @@ const {
   green,
   blue,
   bold,
-} = __test;
+} = __tests;
 
 describe('terminal', () => {
   const arduinoContext = mockArduinoContext();
 
-  describe('opeTerminal', () => {
+  describe('openTerminal', () => {
     it('should open a terminal', async () => {
       const beforeOpenTerminals = vscode.window.terminals;
-      const terminal = opeTerminal(arduinoContext);
+      const terminal = openTerminal(arduinoContext);
       assert.strictEqual(
         vscode.window.terminals.length,
         beforeOpenTerminals.length + 1
@@ -34,9 +35,9 @@ describe('terminal', () => {
 
     it('should not open a new terminal if already opened', async () => {
       const arduinoContext = mockArduinoContext();
-      const first = opeTerminal(arduinoContext);
+      const first = openTerminal(arduinoContext);
       const beforeSecondOpenTerminals = vscode.window.terminals;
-      const second = opeTerminal(arduinoContext);
+      const second = openTerminal(arduinoContext);
       const afterSecondOpenTerminals = vscode.window.terminals;
       assert.strictEqual(first, second);
       assert.strictEqual(
@@ -55,7 +56,7 @@ describe('terminal', () => {
     });
 
     it('should discard the user input and decoder result on params error', () => {
-      const fqbn = 'esp8266:esp8266:generic';
+      const fqbn = new FQBN('esp8266:esp8266:generic');
       const terminal = new DecoderTerminal(arduinoContext);
       toDisposeBeforeEach.push(new vscode.Disposable(() => terminal.close()));
       terminal['state'] = {
@@ -80,7 +81,7 @@ describe('terminal', () => {
 
     it('should discard the decoder result before decoding', async function () {
       this.slow(200);
-      const fqbn = 'esp8266:esp8266:generic';
+      const fqbn = new FQBN('esp8266:esp8266:generic');
       const terminal = new DecoderTerminal(arduinoContext);
       toDisposeBeforeEach.push(new vscode.Disposable(() => terminal.close()));
       terminal['state'] = {
@@ -125,7 +126,7 @@ describe('terminal', () => {
 
     it("should gracefully handle all kind of line endings (including the bogus '\\r')", async function () {
       this.slow(200);
-      const fqbn = 'esp8266:esp8266:generic';
+      const fqbn = new FQBN('esp8266:esp8266:generic');
       const terminal = new DecoderTerminal(arduinoContext);
       toDisposeBeforeEach.push(new vscode.Disposable(() => terminal.close()));
       terminal['state'] = {
@@ -175,7 +176,7 @@ describe('terminal', () => {
       const sketchPath = 'my_sketch';
       const actual = stringifyTerminalState({
         params: new DecodeParamsError('the error message', {
-          fqbn,
+          fqbn: new FQBN(fqbn),
           sketchPath,
         }),
         statusMessage: 'this should be ignored',
@@ -196,7 +197,7 @@ describe('terminal', () => {
       const statusMessage = 'this is the status message';
       const actual = stringifyTerminalState({
         params: {
-          fqbn,
+          fqbn: new FQBN(fqbn),
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
@@ -219,7 +220,7 @@ describe('terminal', () => {
       const statusMessage = 'decoding';
       const actual = stringifyTerminalState({
         params: {
-          fqbn,
+          fqbn: new FQBN(fqbn),
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
@@ -247,7 +248,7 @@ describe('terminal', () => {
       const statusMessage = 'paste to decode';
       const actual = stringifyTerminalState({
         params: {
-          fqbn,
+          fqbn: new FQBN(fqbn),
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
@@ -283,7 +284,7 @@ describe('terminal', () => {
       );
       const actual = stringifyTerminalState({
         params: {
-          fqbn,
+          fqbn: new FQBN(fqbn),
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',

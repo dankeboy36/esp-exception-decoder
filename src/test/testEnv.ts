@@ -4,6 +4,7 @@
 // VS Code without bundling every change to a VSIX and trying it out in Arduino IDE
 
 import debug from 'debug';
+import { getTool } from 'get-arduino-tools';
 import assert from 'node:assert/strict';
 import { constants, promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -90,7 +91,16 @@ async function installToolsViaGit(
         //https://github.com/espressif/arduino-esp32/blob/72c41d09538663ebef80d29eb986cd5bc3395c2d/tools/get.py#L35-L36
         await run('pip', ['install', 'requests', '-q']);
       }
-      await run('python', [getPy], { silent: false, cwd: tempToolsPath });
+      try {
+        await run('python', [getPy], { silent: false, cwd: tempToolsPath });
+      } catch (err) {
+        if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+          // python has been renamed to python3 on some systems
+          await run('python3', [getPy], { silent: false, cwd: tempToolsPath });
+        } else {
+          throw err;
+        }
+      }
       const tools = await fs.readdir(tempToolsPath);
       for (const tool of tools) {
         await fs.rename(
@@ -221,10 +231,6 @@ async function assertPlatformExists(
 export async function setupTestEnv(): Promise<TestEnv> {
   const cliPath = await ensureCliExists(cliVersion);
   if (!cliPath) {
-    // Consider setting the `GITHUB_TOKEN` to the env if you hit a rate-limiter issue on the CI.
-    // See a related hint: https://github.com/microsoft/vscode-ripgrep#github-api-limit-note
-    // You can also cache and restore resources on the CI: https://github.com/actions/cache
-    // If you hit a proxy issue at download, please report a bug at https://github.com/dankeboy36/install-from-gh-to-vscode/issues/new. Thanks!
     throw new Error(`Could not find the Arduino CLI executable.`);
   }
   const cliContext = <CliContext>{
@@ -252,7 +258,6 @@ async function ensureCliExists(
   await fs.mkdir(storagePath, { recursive: true });
   const tool = 'arduino-cli';
   try {
-    const { getTool } = await import('get-arduino-tools');
     const { toolPath } = await getTool({
       tool,
       version,
@@ -260,10 +265,7 @@ async function ensureCliExists(
     });
     return toolPath;
   } catch (err) {
-    if (
-      err instanceof Error &&
-      err.message.includes('Use --force to overwrite')
-    ) {
+    if (err instanceof Error && 'code' in err && err.code === 'EEXIST') {
       // this is expected when the CLI is already downloaded. A specific error would be great though
       return path.join(storagePath, `${tool}${isWindows ? '.exe' : ''}`);
     } else {

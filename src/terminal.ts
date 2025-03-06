@@ -36,7 +36,7 @@ export function activateDecoderTerminal(
   context.subscriptions.push(
     new vscode.Disposable(() => _debugOutput?.dispose()),
     vscode.commands.registerCommand('espExceptionDecoder.showTerminal', () =>
-      opeTerminal(arduinoContext, decode, {
+      openTerminal(arduinoContext, decode, {
         show: true,
         debug: createDebugOutput(),
       })
@@ -44,7 +44,7 @@ export function activateDecoderTerminal(
   );
 }
 
-function opeTerminal(
+function openTerminal(
   arduinoContext: ArduinoContext,
   decoder: typeof decode = decode,
   options: { show: boolean; debug: Debug } = {
@@ -226,7 +226,9 @@ function stringifyTerminalState(state: DecodeTerminalState): string {
   } else {
     const { fqbn, sketchPath } = params;
     lines.push(
-      `Sketch: ${green(path.basename(sketchPath))} FQBN: ${green(fqbn)}`
+      `Sketch: ${green(path.basename(sketchPath))} FQBN: ${green(
+        fqbn.toString()
+      )}`
     );
     if (params instanceof DecodeParamsError) {
       // error overrules any status message
@@ -342,8 +344,8 @@ function color(
 /**
  * (non-API)
  */
-export const __test = {
-  opeTerminal,
+export const __tests = {
+  openTerminal,
   stringifyLines,
   stringifyTerminalState,
   decodeTerminalTitle,
