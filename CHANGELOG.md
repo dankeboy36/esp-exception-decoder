@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/dankeboy36/esp-exception-decoder/compare/1.0.2...1.1.0) (2025-03-06)
+
+
+### Features
+
+* add support for exception decoding on RISC-V chips ([#37](https://github.com/dankeboy36/esp-exception-decoder/issues/37)) ([c06200f](https://github.com/dankeboy36/esp-exception-decoder/commit/c06200f186b33fa48dbff2a8c53f419c0aa0d000))
+
 ## [1.0.2](https://github.com/dankeboy36/esp-exception-decoder/compare/1.0.1...1.0.2) (2023-07-12)
 
 

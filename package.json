@@ -1,7 +1,7 @@
 {
   "name": "esp-exception-decoder",
   "displayName": "ESP Exception Decoder",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "description": "ESP8266/ESP32 Exception Decoder Extension for the Arduino IDE",
   "categories": [
