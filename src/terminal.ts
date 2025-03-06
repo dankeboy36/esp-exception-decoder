@@ -35,13 +35,11 @@ export function activateDecoderTerminal(
 ): void {
   context.subscriptions.push(
     new vscode.Disposable(() => _debugOutput?.dispose()),
-    vscode.commands.registerCommand(
-      'espExceptionDecoder.showTerminal',
-      () =>
-        openTerminal(arduinoContext, decode, {
-          show: true,
-          debug: createDebugOutput(),
-        })
+    vscode.commands.registerCommand('espExceptionDecoder.showTerminal', () =>
+      openTerminal(arduinoContext, decode, {
+        show: true,
+        debug: createDebugOutput(),
+      })
     )
   );
 }
@@ -85,8 +83,8 @@ function createDecodeTerminal(
   return vscode.window.createTerminal(options);
 }
 
-const decodeTerminalTitle = 'ESP Exception Decoder (RISC-V)';
-const decodeTerminalName = 'Exception Decoder (RISC-V)';
+const decodeTerminalTitle = 'ESP Exception Decoder';
+const decodeTerminalName = 'Exception Decoder';
 const initializing = 'Initializing...';
 const busy = 'Decoding...';
 const idle = 'Paste exception to decode...';
