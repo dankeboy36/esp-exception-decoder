@@ -1,9 +1,9 @@
 {
-  "name": "esp-exception-decoder-riscv",
-  "displayName": "ESP Exception Decoder (RISC-V)",
-  "version": "1.0.3",
+  "name": "esp-exception-decoder",
+  "displayName": "ESP Exception Decoder",
+  "version": "1.0.2",
   "private": true,
-  "description": "ESP8266/ESP32 Exception Decoder Extension for the Arduino IDE (https://github.com/dankeboy36/esp-exception-decoder/issues/6)",
+  "description": "ESP8266/ESP32 Exception Decoder Extension for the Arduino IDE",
   "categories": [
     "Other"
   ],
@@ -21,8 +21,8 @@
     "url": "https://github.com/dankeboy36/esp-exception-decoder.git"
   },
   "license": "MIT",
-  "author": "dankeboy36-riscv",
-  "publisher": "dankeboy36-riscv",
+  "author": "dankeboy36",
+  "publisher": "dankeboy36",
   "main": "./dist/extension.js",
   "scripts": {
     "prebuild": "rimraf dist",
@@ -47,9 +47,9 @@
   "contributes": {
     "commands": [
       {
-        "command": "espExceptionDecoderRiscv.showTerminal",
-        "title": "Show Decoder Terminal (RISC-V)",
-        "category": "ESP Exception Decoder (RISC-V)"
+        "command": "espExceptionDecoder.showTerminal",
+        "title": "Show Decoder Terminal",
+        "category": "ESP Exception Decoder"
       }
     ]
   },

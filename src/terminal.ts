@@ -36,7 +36,7 @@ export function activateDecoderTerminal(
   context.subscriptions.push(
     new vscode.Disposable(() => _debugOutput?.dispose()),
     vscode.commands.registerCommand(
-      'espExceptionDecoderRiscv.showTerminal',
+      'espExceptionDecoder.showTerminal',
       () =>
         openTerminal(arduinoContext, decode, {
           show: true,
