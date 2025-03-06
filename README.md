@@ -18,6 +18,10 @@
    - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
      > **ⓘ** If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
 
+### Update
+
+To update to the latest or a more recent version of the decoder extension, simply copy the new version file into the same `plugins` folder alongside the current version. The Arduino IDE will automatically use the most recent version of the extension. If desired, you can delete the older version to keep your plugins folder organized.
+
 ## Usage
 
 1. Open a sketch in the Arduino IDE and verify it.
