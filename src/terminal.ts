@@ -1,17 +1,19 @@
 import debug from 'debug';
 import path from 'node:path';
+import {
+  decode,
+  isParsedGDBLine,
+  type DecodeResult,
+  type GDBLine,
+  type Location,
+} from 'trbr';
 import vscode from 'vscode';
 import type { ArduinoContext } from 'vscode-arduino-api';
 import {
   DecodeParams,
   DecodeParamsError,
-  DecodeResult,
-  GDBLine,
-  Location,
   createDecodeParams,
-  decode,
-  isParsedGDBLine,
-} from './decoder';
+} from './decodeParams';
 import { Debug } from './utils';
 
 const terminalDebug: Debug = debug('espExceptionDecoder:terminal');
@@ -289,16 +291,16 @@ function stringifyLocation(location: Location): string {
 }
 
 function stringifyGDBLine(gdbLine: GDBLine): string {
-  const { address, line } = gdbLine;
+  const { address, lineNumber } = gdbLine;
   if (!isParsedGDBLine(gdbLine)) {
     // Something weird in the GDB output format, report what we can
-    return `${green(address)}: ${line}`;
+    return `${green(address)}: ${lineNumber}`;
   }
   const filename = path.basename(gdbLine.file);
   const dirname = path.dirname(gdbLine.file);
   const file = `${dirname}${path.sep}${bold(filename)}`;
   return `${green(address)}: ${blue(gdbLine.method, true)} at ${file}:${bold(
-    line
+    lineNumber
   )}`;
 }
 

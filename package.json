@@ -37,10 +37,6 @@
     "release": "semantic-release",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "test": "node ./out/test/runTest.js",
-    "pretest-all": "npm run pretest",
-    "test-all": "node ./out/test/runTest.js --all",
-    "pretest-slow": "npm run pretest",
-    "test-slow": "node ./out/test/runTest.js --slow",
     "watch": "webpack --watch",
     "watch-tests": "tsc -p . -w --outDir out"
   },
@@ -59,7 +55,8 @@
   "dependencies": {
     "debug": "^4.3.7",
     "execa": "^7.1.1",
-    "fqbn": "^1.1.2"
+    "fqbn": "^1.1.2",
+    "trbr": "^0.1.6"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
