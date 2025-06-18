@@ -2,9 +2,10 @@ import { FQBN } from 'fqbn';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import vscode from 'vscode';
-import { DecodeParamsError, ParsedGDBLine } from '../../decoder';
+import { DecodeParamsError } from '../../decodeParams';
 import { __tests } from '../../terminal';
 import { mockArduinoContext } from './mock';
+import { ParsedGDBLine } from 'trbr';
 
 const {
   openTerminal,
@@ -71,7 +72,7 @@ describe('terminal', () => {
           registerLocations: {},
           exception: undefined,
           allocLocation: undefined,
-          stacktraceLines: [{ address: '0x00002710', line: 'bla bla' }],
+          stacktraceLines: [{ address: '0x00002710', lineNumber: 'bla bla' }],
         },
       };
       terminal['updateState']({ params: new Error('boom') });
@@ -96,7 +97,7 @@ describe('terminal', () => {
           registerLocations: {},
           exception: undefined,
           allocLocation: undefined,
-          stacktraceLines: [{ address: '0x00002710', line: 'bla bla' }],
+          stacktraceLines: [{ address: '0x00002710', lineNumber: 'bla bla' }],
         },
         statusMessage: 'idle',
       };
@@ -295,7 +296,7 @@ describe('terminal', () => {
           allocLocation: [
             <ParsedGDBLine>{
               address: '0x400d200d',
-              line: '12',
+              lineNumber: '12',
               file: libPath,
               method: 'myMethod()',
             },
@@ -305,11 +306,11 @@ describe('terminal', () => {
           stacktraceLines: [
             {
               address: '0x400d100d',
-              line: 'stacktrace line',
+              lineNumber: 'stacktrace line',
             },
             <ParsedGDBLine>{
               address: '0x400d400d',
-              line: '123',
+              lineNumber: '123',
               file: mainSketchFilePath,
               method: 'otherMethod()',
             },
@@ -317,7 +318,7 @@ describe('terminal', () => {
           registerLocations: {
             BAR: <ParsedGDBLine>{
               address: '0x400d129d',
-              line: '36',
+              lineNumber: '36',
               file: headerPath,
               method: 'loop()',
             },
