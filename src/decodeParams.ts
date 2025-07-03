@@ -1,8 +1,6 @@
 import { FQBN } from 'fqbn';
 import path from 'node:path';
 import {
-  DecodeTarget,
-  RiscvDecodeTarget,
   DecodeParams as TrbrDecodeParams,
   defaultTargetArch,
   isRiscvFQBN,
@@ -70,9 +68,9 @@ export async function createDecodeParams(
       fqbn,
     });
   }
-  let targetArch: DecodeTarget = defaultTargetArch;
+  let targetArch: DecodeParams['targetArch'] = defaultTargetArch;
   if (isRiscvFQBN(fqbn)) {
-    targetArch = fqbn.boardId as RiscvDecodeTarget;
+    targetArch = fqbn.boardId;
   }
   return {
     toolPath,
@@ -107,7 +105,7 @@ async function maybeResolveToolPath(
 ): Promise<string | undefined> {
   let toolPath: string | undefined;
   try {
-    toolPath = await resolveToolPath(fqbn, buildProperties);
+    toolPath = await resolveToolPath({ fqbn, buildProperties });
   } catch {}
   return toolPath;
 }

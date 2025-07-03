@@ -1,12 +1,6 @@
 import debug from 'debug';
 import path from 'node:path';
-import {
-  decode,
-  isParsedGDBLine,
-  type DecodeResult,
-  type GDBLine,
-  type Location,
-} from 'trbr';
+import { DecodeResult, stringifyDecodeResult, decode } from 'trbr';
 import vscode from 'vscode';
 import type { ArduinoContext } from 'vscode-arduino-api';
 import {
@@ -171,10 +165,16 @@ class DecoderTerminal implements vscode.Pseudoterminal {
     const signal = this.abortController.signal;
     let decoderResult: DecodeTerminalState['decoderResult'];
     try {
-      decoderResult = await this.decoder(params, data, {
+      const result = await this.decoder(params, data, {
         signal,
         debug: this.debug,
       });
+      if (Array.isArray(result)) {
+        throw new Error(
+          'Unexpectedly received a coredump result from the decoder.'
+        );
+      }
+      decoderResult = result;
     } catch (err) {
       this.abortController.abort();
       decoderResult = err instanceof Error ? err : new Error(String(err));
@@ -240,12 +240,14 @@ function stringifyTerminalState(state: DecodeTerminalState): string {
         lines.push('', userInput);
       }
       if (decoderResult) {
-        lines.push(
-          '',
-          decoderResult instanceof Error
-            ? red(toTerminalEOL(decoderResult.message))
-            : stringifyDecodeResult(decoderResult)
-        );
+        lines.push('');
+        if (decoderResult instanceof Error) {
+          lines.push(red(toTerminalEOL(decoderResult.message)));
+        } else {
+          lines.push(
+            ...stringifyDecodeResult(decoderResult).split(terminalEOL)
+          );
+        }
       }
     }
     if (statusMessage) {
@@ -253,55 +255,6 @@ function stringifyTerminalState(state: DecodeTerminalState): string {
     }
   }
   return stringifyLines(lines);
-}
-
-function stringifyDecodeResult(decodeResult: DecodeResult): string {
-  const lines: string[] = [];
-  if (decodeResult.exception) {
-    const [message, code] = decodeResult.exception;
-    lines.push(red(`Exception ${code}: ${message}`));
-  }
-  const registerLines = Object.entries(decodeResult.registerLocations);
-  for (const [name, location] of registerLines) {
-    lines.push(`${red(name)}: ${stringifyLocation(location)}`);
-  }
-  if (registerLines.length) {
-    lines.push('');
-  }
-  if (decodeResult.stacktraceLines.length) {
-    lines.push('Decoding stack results');
-  }
-  lines.push(...decodeResult.stacktraceLines.map(stringifyGDBLine));
-  if (decodeResult.allocLocation) {
-    const [location, size] = decodeResult.allocLocation;
-    lines.push(
-      '',
-      `${red(
-        `Memory allocation of ${size} bytes failed at`
-      )} ${stringifyLocation(location)}`
-    );
-  }
-  return stringifyLines(lines);
-}
-
-function stringifyLocation(location: Location): string {
-  return typeof location === 'string'
-    ? green(location)
-    : stringifyGDBLine(location);
-}
-
-function stringifyGDBLine(gdbLine: GDBLine): string {
-  const { address, lineNumber } = gdbLine;
-  if (!isParsedGDBLine(gdbLine)) {
-    // Something weird in the GDB output format, report what we can
-    return `${green(address)}: ${lineNumber}`;
-  }
-  const filename = path.basename(gdbLine.file);
-  const dirname = path.dirname(gdbLine.file);
-  const file = `${dirname}${path.sep}${bold(filename)}`;
-  return `${green(address)}: ${blue(gdbLine.method, true)} at ${file}:${bold(
-    lineNumber
-  )}`;
 }
 
 function stringifyLines(lines: string[]): string {

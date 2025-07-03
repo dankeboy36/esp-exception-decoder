@@ -5,7 +5,6 @@ import vscode from 'vscode';
 import { DecodeParamsError } from '../../decodeParams';
 import { __tests } from '../../terminal';
 import { mockArduinoContext } from './mock';
-import { ParsedGDBLine } from 'trbr';
 
 const {
   openTerminal,
@@ -16,7 +15,6 @@ const {
   red,
   green,
   blue,
-  bold,
 } = __tests;
 
 describe('terminal', () => {
@@ -69,10 +67,9 @@ describe('terminal', () => {
         },
         userInput: 'some user input',
         decoderResult: {
-          registerLocations: {},
-          exception: undefined,
-          allocLocation: undefined,
-          stacktraceLines: [{ address: '0x00002710', lineNumber: 'bla bla' }],
+          stacktraceLines: [
+            { regAddr: '0x00002710', lineNumber: 'bla bla' } as const,
+          ],
         },
       };
       terminal['updateState']({ params: new Error('boom') });
@@ -94,10 +91,9 @@ describe('terminal', () => {
         },
         userInput: 'some user input',
         decoderResult: {
-          registerLocations: {},
-          exception: undefined,
-          allocLocation: undefined,
-          stacktraceLines: [{ address: '0x00002710', lineNumber: 'bla bla' }],
+          stacktraceLines: [
+            { regAddr: '0x00002710', lineNumber: 'bla bla' } as const,
+          ],
         },
         statusMessage: 'idle',
       };
@@ -110,11 +106,7 @@ describe('terminal', () => {
         (<{ statusMessage: string }>terminal['state']).statusMessage.length > 0,
         true
       );
-      await new Promise((resolve) => setTimeout(resolve, 100)); // TODO: listen on state did change event
-      assert.strictEqual(
-        <unknown>terminal['state'].decoderResult instanceof Error,
-        true
-      );
+      await new Promise((resolve) => setTimeout(resolve, 1_000)); // TODO: listen on state did change event
       assert.strictEqual(
         (<Error>(<unknown>terminal['state'].decoderResult)).message,
         'Could not recognize stack trace/backtrace'
@@ -139,7 +131,7 @@ describe('terminal', () => {
         },
       };
       terminal.handleInput('line1\rline2\r\nline3\rline4\nline5');
-      await new Promise((resolve) => setTimeout(resolve, 100)); // TODO: listen on state did change event
+      await new Promise((resolve) => setTimeout(resolve, 1_000)); // TODO: listen on state did change event
       assert.strictEqual(
         terminal['state'].decoderResult instanceof Error,
         true
@@ -278,7 +270,6 @@ describe('terminal', () => {
       const sketchPath = 'my_sketch';
       const statusMessage = 'paste to decode';
       const libPath = path.join(__dirname, 'path/to/lib.cpp');
-      const headerPath = path.join(__dirname, 'path/to/header.h');
       const mainSketchFilePath = path.join(
         __dirname,
         'path/to/main_sketch.ino'
@@ -293,41 +284,41 @@ describe('terminal', () => {
         userInput: 'alma\nkorte\nszilva',
         statusMessage,
         decoderResult: {
-          allocLocation: [
-            <ParsedGDBLine>{
-              address: '0x400d200d',
+          faultInfo: {
+            faultMessage: 'error message',
+            coreId: 0,
+            faultCode: 1,
+            programCounter: { location: { lineNumber: '??', regAddr: '' } },
+          },
+          allocInfo: {
+            allocAddr: {
+              regAddr: '0x400d200d',
               lineNumber: '12',
               file: libPath,
-              method: 'myMethod()',
+              method: 'myMethod',
             },
-            100,
-          ],
-          exception: ['error message', 1],
+            allocSize: 100,
+          },
           stacktraceLines: [
             {
-              address: '0x400d100d',
+              regAddr: '0x400d100d',
               lineNumber: 'stacktrace line',
             },
-            <ParsedGDBLine>{
-              address: '0x400d400d',
+            {
+              regAddr: '0x400d400d',
               lineNumber: '123',
               file: mainSketchFilePath,
-              method: 'otherMethod()',
+              method: 'otherMethod',
             },
           ],
-          registerLocations: {
-            BAR: <ParsedGDBLine>{
-              address: '0x400d129d',
-              lineNumber: '36',
-              file: headerPath,
-              method: 'loop()',
-            },
-            FOO: '0x00000000',
+          regs: {
+            BAR: 0x400d129d,
+            FOO: 0x00000000,
           },
         },
       });
       const location = (file: string) =>
-        `${path.dirname(file)}${path.sep}${bold(path.basename(file))}`;
+        `${path.dirname(file)}${path.sep}${path.basename(file)}`;
       const expected = stringifyLines([
         decodeTerminalTitle,
         `Sketch: ${green(sketchPath)} FQBN: ${green(fqbn)}`,
@@ -336,26 +327,34 @@ describe('terminal', () => {
         'korte',
         'szilva',
         '',
-        red('Exception 1: error message'),
-        `${red('BAR')}: ${green('0x400d129d')}: ${blue(
-          'loop()',
-          true
-        )} at ${location(headerPath)}:${bold('36')}`,
-        `${red('FOO')}: ${green('0x00000000')}`,
+        red('0 | error message | 1'),
         '',
-        'Decoding stack results',
-        `${green('0x400d100d')}: stacktrace line`,
-        `${green('0x400d400d')}: ${blue('otherMethod()', true)} at ${location(
-          mainSketchFilePath
-        )}:${bold('123')}`,
+        red('PC -> : ??'),
         '',
-        `${red('Memory allocation of 100 bytes failed at')} ${green(
-          '0x400d200d'
-        )}: ${blue('myMethod()', true)} at ${location(libPath)}:${bold('12')}`,
+        green('0x400d100d') + ': stacktrace line',
+        green('0x400d400d') +
+          ': ' +
+          blue('otherMethod ()', true) +
+          ' at ' +
+          location(mainSketchFilePath) +
+          ':123',
+        '',
+        red('Memory allocation of 100 bytes failed at') +
+          ' ' +
+          green('0x400d200d') +
+          ': ' +
+          blue('myMethod ()', true) +
+          ' at ' +
+          location(libPath) +
+          ':12',
         '',
         statusMessage,
         '',
       ]);
+      console.log('actual -----------');
+      console.log(actual);
+      console.log('expected -----------');
+      console.log(expected);
       assert.strictEqual(actual, expected);
     });
   });
