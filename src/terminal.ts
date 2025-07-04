@@ -267,9 +267,8 @@ function toTerminalEOL(data: string): string {
 
 const terminalEOL = '\r\n';
 const clear = '\x1b[2J\x1b[3J\x1b[;H';
-const resetStyle = '\x1b[0m';
+const resetFgColorStyle = '\x1b[39m';
 enum ANSIStyle {
-  'bold' = 1,
   'red' = 31,
   'green' = 32,
   'blue' = 34,
@@ -277,23 +276,14 @@ enum ANSIStyle {
 function red(text: string): string {
   return color(text, ANSIStyle.red);
 }
-function green(text: string, isBold = false): string {
-  return color(text, ANSIStyle.green, isBold);
+function green(text: string): string {
+  return color(text, ANSIStyle.green);
 }
-function blue(text: string, isBold = false): string {
-  return color(text, ANSIStyle.blue, isBold);
+function blue(text: string): string {
+  return color(text, ANSIStyle.blue);
 }
-function bold(text: string): string {
-  return `\x1b[${ANSIStyle.bold}m${text}${resetStyle}`;
-}
-function color(
-  text: string,
-  foregroundColor: ANSIStyle,
-  isBold = false
-): string {
-  return `\x1b[${foregroundColor}${
-    isBold ? `;${ANSIStyle.bold}` : ''
-  }m${text}${resetStyle}`;
+function color(text: string, foregroundColor: ANSIStyle): string {
+  return `\x1b[${foregroundColor}m${text}${resetFgColorStyle}`;
 }
 
 /**
@@ -308,5 +298,4 @@ export const __tests = {
   red,
   green,
   blue,
-  bold,
 } as const;

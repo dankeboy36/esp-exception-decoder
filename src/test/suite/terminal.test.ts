@@ -106,10 +106,11 @@ describe('terminal', () => {
         (<{ statusMessage: string }>terminal['state']).statusMessage.length > 0,
         true
       );
-      await new Promise((resolve) => setTimeout(resolve, 1_000)); // TODO: listen on state did change event
-      assert.strictEqual(
-        (<Error>(<unknown>terminal['state'].decoderResult)).message,
-        'Could not recognize stack trace/backtrace'
+      await waitUntil(() =>
+        assert.strictEqual(
+          (<Error>(<unknown>terminal['state'].decoderResult))?.message,
+          'No register addresses found to decode'
+        )
       );
       assert.strictEqual(
         terminal['state'].userInput,
@@ -131,14 +132,15 @@ describe('terminal', () => {
         },
       };
       terminal.handleInput('line1\rline2\r\nline3\rline4\nline5');
-      await new Promise((resolve) => setTimeout(resolve, 1_000)); // TODO: listen on state did change event
-      assert.strictEqual(
-        terminal['state'].decoderResult instanceof Error,
-        true
+      await waitUntil(() =>
+        assert.strictEqual(
+          terminal['state'].decoderResult instanceof Error,
+          true
+        )
       );
       assert.strictEqual(
         (<Error>terminal['state'].decoderResult).message,
-        'Could not recognize stack trace/backtrace'
+        'No register addresses found to decode'
       );
       assert.strictEqual(
         terminal['state'].userInput,
@@ -288,7 +290,19 @@ describe('terminal', () => {
             faultMessage: 'error message',
             coreId: 0,
             faultCode: 1,
-            programCounter: { location: { lineNumber: '??', regAddr: '' } },
+            programCounter: {
+              location: {
+                regAddr: '0x400d100d',
+                lineNumber: '17',
+                file: 'src/main.cpp',
+                method: 'mainMethod',
+                args: [
+                  { name: 'arg1', value: 'value1' },
+                  { name: 'arg2', value: 'value2' },
+                ],
+              },
+              addr: 0x400d100d,
+            },
           },
           allocInfo: {
             allocAddr: {
@@ -329,21 +343,25 @@ describe('terminal', () => {
         '',
         red('0 | error message | 1'),
         '',
-        red('PC -> : ??'),
+        red('PC -> ') +
+          green('0x400d100d') +
+          ': ' +
+          blue('mainMethod (arg1=value1, arg2=value2)') +
+          ' at src/main.cpp:17',
         '',
         green('0x400d100d') + ': stacktrace line',
         green('0x400d400d') +
           ': ' +
-          blue('otherMethod ()', true) +
+          blue('otherMethod ()') +
           ' at ' +
           location(mainSketchFilePath) +
           ':123',
         '',
-        red('Memory allocation of 100 bytes failed at') +
-          ' ' +
+        red('Memory allocation of 100 bytes failed') +
+          ' at ' +
           green('0x400d200d') +
           ': ' +
-          blue('myMethod ()', true) +
+          blue('myMethod ()') +
           ' at ' +
           location(libPath) +
           ':12',
@@ -351,11 +369,36 @@ describe('terminal', () => {
         statusMessage,
         '',
       ]);
-      console.log('actual -----------');
-      console.log(actual);
-      console.log('expected -----------');
-      console.log(expected);
       assert.strictEqual(actual, expected);
     });
   });
 });
+
+export interface WaitUntilOptions {
+  timeout?: number;
+  interval?: number;
+}
+
+export async function waitUntil(
+  fn: () => void | Promise<void>,
+  { timeout = 2_000, interval = 50 }: WaitUntilOptions = {}
+): Promise<void> {
+  const start = Date.now();
+  let lastError: unknown;
+
+  while (Date.now() - start < timeout) {
+    try {
+      await fn();
+      return;
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AssertionError') {
+        lastError = e;
+        await new Promise((r) => setTimeout(r, interval));
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  throw lastError;
+}
