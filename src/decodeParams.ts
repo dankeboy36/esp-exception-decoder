@@ -1,11 +1,6 @@
 import { FQBN } from 'fqbn';
 import path from 'node:path';
-import {
-  DecodeParams as TrbrDecodeParams,
-  defaultTargetArch,
-  isRiscvFQBN,
-  resolveToolPath,
-} from 'trbr';
+import type { DecodeParams as TrbrDecodeParams } from 'trbr';
 import type { ArduinoState } from 'vscode-arduino-api';
 
 import { access } from './utils';
@@ -68,6 +63,7 @@ export async function createDecodeParams(
       fqbn,
     });
   }
+  const { defaultTargetArch, isRiscvFQBN } = await import('trbr');
   let targetArch: DecodeParams['targetArch'] = defaultTargetArch;
   if (isRiscvFQBN(fqbn)) {
     targetArch = fqbn.boardId;
@@ -105,6 +101,7 @@ async function maybeResolveToolPath(
 ): Promise<string | undefined> {
   let toolPath: string | undefined;
   try {
+    const { resolveToolPath } = await import('trbr');
     toolPath = await resolveToolPath({ fqbn, buildProperties });
   } catch {}
   return toolPath;

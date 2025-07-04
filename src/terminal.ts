@@ -1,6 +1,6 @@
 import debug from 'debug';
 import path from 'node:path';
-import { DecodeResult, stringifyDecodeResult, decode } from 'trbr';
+import type { DecodeResult, decode, stringifyDecodeResult } from 'trbr';
 import vscode from 'vscode';
 import type { ArduinoContext } from 'vscode-arduino-api';
 import {
@@ -31,18 +31,24 @@ export function activateDecoderTerminal(
 ): void {
   context.subscriptions.push(
     new vscode.Disposable(() => _debugOutput?.dispose()),
-    vscode.commands.registerCommand('espExceptionDecoder.showTerminal', () =>
-      openTerminal(arduinoContext, decode, {
-        show: true,
-        debug: createDebugOutput(),
-      })
+    vscode.commands.registerCommand(
+      'espExceptionDecoder.showTerminal',
+      async () => {
+        const { decode: decoder, stringifyDecodeResult: stringifier } =
+          await import('trbr');
+        openTerminal(arduinoContext, decoder, stringifier, {
+          show: true,
+          debug: createDebugOutput(),
+        });
+      }
     )
   );
 }
 
 function openTerminal(
   arduinoContext: ArduinoContext,
-  decoder: typeof decode = decode,
+  decoder: typeof decode,
+  stringifier: typeof stringifyDecodeResult,
   options: { show: boolean; debug: Debug } = {
     show: true,
     debug: terminalDebug,
@@ -51,7 +57,7 @@ function openTerminal(
   const { debug, show } = options;
   const terminal =
     findDecodeTerminal() ??
-    createDecodeTerminal(arduinoContext, decoder, debug);
+    createDecodeTerminal(arduinoContext, decoder, stringifier, debug);
   if (show) {
     terminal.show();
   }
@@ -68,9 +74,10 @@ function findDecodeTerminal(): vscode.Terminal | undefined {
 function createDecodeTerminal(
   arduinoContext: ArduinoContext,
   decoder: typeof decode,
+  stringifier: typeof stringifyDecodeResult,
   debug: Debug
 ): vscode.Terminal {
-  const pty = new DecoderTerminal(arduinoContext, decoder, debug);
+  const pty = new DecoderTerminal(arduinoContext, decoder, stringifier, debug);
   const options: vscode.ExtensionTerminalOptions = {
     name: decodeTerminalName,
     pty,
@@ -105,7 +112,8 @@ class DecoderTerminal implements vscode.Pseudoterminal {
 
   constructor(
     private readonly arduinoContext: ArduinoContext,
-    private readonly decoder: typeof decode = decode,
+    private readonly decoder: typeof decode,
+    private readonly stringifier: typeof stringifyDecodeResult,
     private readonly debug: Debug = terminalDebug
   ) {
     this.onDidWriteEmitter = new vscode.EventEmitter<string>();
@@ -212,14 +220,17 @@ class DecoderTerminal implements vscode.Pseudoterminal {
   }
 
   private redrawTerminal(): void {
-    const output = stringifyTerminalState(this.state);
+    const output = stringifyTerminalState(this.state, this.stringifier);
     this.debug(`redrawTerminal: ${output}`);
     this.onDidWriteEmitter.fire(clear);
     this.onDidWriteEmitter.fire(output);
   }
 }
 
-function stringifyTerminalState(state: DecodeTerminalState): string {
+function stringifyTerminalState(
+  state: DecodeTerminalState,
+  stringifier: typeof stringifyDecodeResult
+): string {
   const lines = [decodeTerminalTitle];
   const { params, userInput, decoderResult } = state;
   let { statusMessage } = state;
@@ -244,9 +255,7 @@ function stringifyTerminalState(state: DecodeTerminalState): string {
         if (decoderResult instanceof Error) {
           lines.push(red(toTerminalEOL(decoderResult.message)));
         } else {
-          lines.push(
-            ...stringifyDecodeResult(decoderResult).split(terminalEOL)
-          );
+          lines.push(...stringifier(decoderResult).split(terminalEOL));
         }
       }
     }
