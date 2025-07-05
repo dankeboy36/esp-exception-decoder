@@ -3,7 +3,7 @@ out
 dist
 node_modules
 .vscode-test
-*.vsix
+# *.vsix
 # binary releases of the Arduino CLI for testing and the `directories.data` folder for the tests
 test-resources
 .nyc_output
