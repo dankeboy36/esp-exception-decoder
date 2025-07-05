@@ -74,8 +74,6 @@ To update to the latest or a more recent version of the decoder extension, simpl
    npm run test
    ```
 
-   > **ⓘ** You can run the _slow_ test with `npm run test-slow` and all tests with `npm run test-all`.
-
 ## Hints
 
 - If you are using VS Code for development, you can take advantage of predefined _Launch Configurations_ to debug the extensions and tests. For guidance on how to [test VS Code extensions](https://code.visualstudio.com/api/working-with-extensions/testing-extension), see the documentation.

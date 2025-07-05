@@ -21,15 +21,12 @@ async function main() {
     }
 
     const args = process.argv.splice(2);
-    const all = args.includes('--all');
-    if (all) {
-      extensionTestsEnv.CLI_TEST_CONTEXT = 'ALL';
-    } else {
-      const slow = args.includes('--slow');
-      if (slow) {
-        extensionTestsEnv.CLI_TEST_CONTEXT = 'SLOW';
-      }
+    const slow = args.includes('--slow');
+    if (slow) {
+      extensionTestsEnv.CLI_TEST_CONTEXT = 'SLOW';
     }
+
+    extensionTestsEnv.FORCE_COLOR = '1'; // Force color output in tests
 
     // Download VS Code, unzip it and run the integration test
     await runTests({

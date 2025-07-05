@@ -1,8 +1,10 @@
 import { FQBN } from 'fqbn';
+import { before } from 'mocha';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import type { decode, stringifyDecodeResult } from 'trbr';
 import vscode from 'vscode';
-import { DecodeParamsError, ParsedGDBLine } from '../../decoder';
+import { DecodeParamsError } from '../../decodeParams';
 import { __tests } from '../../terminal';
 import { mockArduinoContext } from './mock';
 
@@ -15,16 +17,23 @@ const {
   red,
   green,
   blue,
-  bold,
 } = __tests;
 
 describe('terminal', () => {
   const arduinoContext = mockArduinoContext();
+  let stringifier: typeof stringifyDecodeResult;
+  let decoder: typeof decode;
+
+  before(async () => {
+    const { decode, stringifyDecodeResult } = await import('trbr');
+    decoder = decode;
+    stringifier = stringifyDecodeResult;
+  });
 
   describe('openTerminal', () => {
     it('should open a terminal', async () => {
       const beforeOpenTerminals = vscode.window.terminals;
-      const terminal = openTerminal(arduinoContext);
+      const terminal = openTerminal(arduinoContext, decoder, stringifier);
       assert.strictEqual(
         vscode.window.terminals.length,
         beforeOpenTerminals.length + 1
@@ -35,9 +44,9 @@ describe('terminal', () => {
 
     it('should not open a new terminal if already opened', async () => {
       const arduinoContext = mockArduinoContext();
-      const first = openTerminal(arduinoContext);
+      const first = openTerminal(arduinoContext, decoder, stringifier);
       const beforeSecondOpenTerminals = vscode.window.terminals;
-      const second = openTerminal(arduinoContext);
+      const second = openTerminal(arduinoContext, decoder, stringifier);
       const afterSecondOpenTerminals = vscode.window.terminals;
       assert.strictEqual(first, second);
       assert.strictEqual(
@@ -57,7 +66,11 @@ describe('terminal', () => {
 
     it('should discard the user input and decoder result on params error', () => {
       const fqbn = new FQBN('esp8266:esp8266:generic');
-      const terminal = new DecoderTerminal(arduinoContext);
+      const terminal = new DecoderTerminal(
+        arduinoContext,
+        decoder,
+        stringifier
+      );
       toDisposeBeforeEach.push(new vscode.Disposable(() => terminal.close()));
       terminal['state'] = {
         params: {
@@ -68,10 +81,9 @@ describe('terminal', () => {
         },
         userInput: 'some user input',
         decoderResult: {
-          registerLocations: {},
-          exception: undefined,
-          allocLocation: undefined,
-          stacktraceLines: [{ address: '0x00002710', line: 'bla bla' }],
+          stacktraceLines: [
+            { regAddr: '0x00002710', lineNumber: 'bla bla' } as const,
+          ],
         },
       };
       terminal['updateState']({ params: new Error('boom') });
@@ -82,7 +94,11 @@ describe('terminal', () => {
     it('should discard the decoder result before decoding', async function () {
       this.slow(200);
       const fqbn = new FQBN('esp8266:esp8266:generic');
-      const terminal = new DecoderTerminal(arduinoContext);
+      const terminal = new DecoderTerminal(
+        arduinoContext,
+        decoder,
+        stringifier
+      );
       toDisposeBeforeEach.push(new vscode.Disposable(() => terminal.close()));
       terminal['state'] = {
         params: {
@@ -93,10 +109,9 @@ describe('terminal', () => {
         },
         userInput: 'some user input',
         decoderResult: {
-          registerLocations: {},
-          exception: undefined,
-          allocLocation: undefined,
-          stacktraceLines: [{ address: '0x00002710', line: 'bla bla' }],
+          stacktraceLines: [
+            { regAddr: '0x00002710', lineNumber: 'bla bla' } as const,
+          ],
         },
         statusMessage: 'idle',
       };
@@ -109,14 +124,11 @@ describe('terminal', () => {
         (<{ statusMessage: string }>terminal['state']).statusMessage.length > 0,
         true
       );
-      await new Promise((resolve) => setTimeout(resolve, 100)); // TODO: listen on state did change event
-      assert.strictEqual(
-        <unknown>terminal['state'].decoderResult instanceof Error,
-        true
-      );
-      assert.strictEqual(
-        (<Error>(<unknown>terminal['state'].decoderResult)).message,
-        'Could not recognize stack trace/backtrace'
+      await waitUntil(() =>
+        assert.strictEqual(
+          (<Error>(<unknown>terminal['state'].decoderResult))?.message,
+          'No register addresses found to decode'
+        )
       );
       assert.strictEqual(
         terminal['state'].userInput,
@@ -127,7 +139,11 @@ describe('terminal', () => {
     it("should gracefully handle all kind of line endings (including the bogus '\\r')", async function () {
       this.slow(200);
       const fqbn = new FQBN('esp8266:esp8266:generic');
-      const terminal = new DecoderTerminal(arduinoContext);
+      const terminal = new DecoderTerminal(
+        arduinoContext,
+        decoder,
+        stringifier
+      );
       toDisposeBeforeEach.push(new vscode.Disposable(() => terminal.close()));
       terminal['state'] = {
         params: {
@@ -138,14 +154,15 @@ describe('terminal', () => {
         },
       };
       terminal.handleInput('line1\rline2\r\nline3\rline4\nline5');
-      await new Promise((resolve) => setTimeout(resolve, 100)); // TODO: listen on state did change event
-      assert.strictEqual(
-        terminal['state'].decoderResult instanceof Error,
-        true
+      await waitUntil(() =>
+        assert.strictEqual(
+          terminal['state'].decoderResult instanceof Error,
+          true
+        )
       );
       assert.strictEqual(
         (<Error>terminal['state'].decoderResult).message,
-        'Could not recognize stack trace/backtrace'
+        'No register addresses found to decode'
       );
       assert.strictEqual(
         terminal['state'].userInput,
@@ -164,9 +181,12 @@ describe('terminal', () => {
 
   describe('stringifyTerminalState', () => {
     it('should show the title when the state is empty', () => {
-      const actual = stringifyTerminalState({
-        params: new Error('alma'),
-      });
+      const actual = stringifyTerminalState(
+        {
+          params: new Error('alma'),
+        },
+        stringifier
+      );
       const expected = stringifyLines([decodeTerminalTitle, `${red('alma')}`]);
       assert.strictEqual(actual, expected);
     });
@@ -174,13 +194,16 @@ describe('terminal', () => {
     it('should show FQBN and sketch name when the error contains context traces', () => {
       const fqbn = 'a:b:c';
       const sketchPath = 'my_sketch';
-      const actual = stringifyTerminalState({
-        params: new DecodeParamsError('the error message', {
-          fqbn: new FQBN(fqbn),
-          sketchPath,
-        }),
-        statusMessage: 'this should be ignored',
-      });
+      const actual = stringifyTerminalState(
+        {
+          params: new DecodeParamsError('the error message', {
+            fqbn: new FQBN(fqbn),
+            sketchPath,
+          }),
+          statusMessage: 'this should be ignored',
+        },
+        stringifier
+      );
       const expected = stringifyLines([
         decodeTerminalTitle,
         `Sketch: ${green(sketchPath)} FQBN: ${green(fqbn)}`,
@@ -195,15 +218,18 @@ describe('terminal', () => {
       const fqbn = 'a:b:c';
       const sketchPath = 'my_sketch';
       const statusMessage = 'this is the status message';
-      const actual = stringifyTerminalState({
-        params: {
-          fqbn: new FQBN(fqbn),
-          sketchPath,
-          toolPath: 'this does not matter',
-          elfPath: 'irrelevant',
+      const actual = stringifyTerminalState(
+        {
+          params: {
+            fqbn: new FQBN(fqbn),
+            sketchPath,
+            toolPath: 'this does not matter',
+            elfPath: 'irrelevant',
+          },
+          statusMessage,
         },
-        statusMessage,
-      });
+        stringifier
+      );
       const expected = stringifyLines([
         decodeTerminalTitle,
         `Sketch: ${green(sketchPath)} FQBN: ${green(fqbn)}`,
@@ -218,16 +244,19 @@ describe('terminal', () => {
       const fqbn = 'a:b:c';
       const sketchPath = 'my_sketch';
       const statusMessage = 'decoding';
-      const actual = stringifyTerminalState({
-        params: {
-          fqbn: new FQBN(fqbn),
-          sketchPath,
-          toolPath: 'this does not matter',
-          elfPath: 'irrelevant',
+      const actual = stringifyTerminalState(
+        {
+          params: {
+            fqbn: new FQBN(fqbn),
+            sketchPath,
+            toolPath: 'this does not matter',
+            elfPath: 'irrelevant',
+          },
+          userInput: 'alma\nkorte\nszilva',
+          statusMessage,
         },
-        userInput: 'alma\nkorte\nszilva',
-        statusMessage,
-      });
+        stringifier
+      );
       const expected = stringifyLines([
         decodeTerminalTitle,
         `Sketch: ${green(sketchPath)} FQBN: ${green(fqbn)}`,
@@ -246,17 +275,20 @@ describe('terminal', () => {
       const fqbn = 'a:b:c';
       const sketchPath = 'my_sketch';
       const statusMessage = 'paste to decode';
-      const actual = stringifyTerminalState({
-        params: {
-          fqbn: new FQBN(fqbn),
-          sketchPath,
-          toolPath: 'this does not matter',
-          elfPath: 'irrelevant',
+      const actual = stringifyTerminalState(
+        {
+          params: {
+            fqbn: new FQBN(fqbn),
+            sketchPath,
+            toolPath: 'this does not matter',
+            elfPath: 'irrelevant',
+          },
+          userInput: 'alma\nkorte\nszilva',
+          statusMessage,
+          decoderResult: new Error('boom!'),
         },
-        userInput: 'alma\nkorte\nszilva',
-        statusMessage,
-        decoderResult: new Error('boom!'),
-      });
+        stringifier
+      );
       const expected = stringifyLines([
         decodeTerminalTitle,
         `Sketch: ${green(sketchPath)} FQBN: ${green(fqbn)}`,
@@ -272,61 +304,75 @@ describe('terminal', () => {
       ]);
       assert.strictEqual(actual, expected);
     });
-    it('should show decode output', () => {
+    it('should show decode output', async () => {
       const fqbn = 'a:b:c';
       const sketchPath = 'my_sketch';
       const statusMessage = 'paste to decode';
       const libPath = path.join(__dirname, 'path/to/lib.cpp');
-      const headerPath = path.join(__dirname, 'path/to/header.h');
       const mainSketchFilePath = path.join(
         __dirname,
         'path/to/main_sketch.ino'
       );
-      const actual = stringifyTerminalState({
-        params: {
-          fqbn: new FQBN(fqbn),
-          sketchPath,
-          toolPath: 'this does not matter',
-          elfPath: 'irrelevant',
-        },
-        userInput: 'alma\nkorte\nszilva',
-        statusMessage,
-        decoderResult: {
-          allocLocation: [
-            <ParsedGDBLine>{
-              address: '0x400d200d',
-              line: '12',
-              file: libPath,
-              method: 'myMethod()',
+      const actual = stringifyTerminalState(
+        {
+          params: {
+            fqbn: new FQBN(fqbn),
+            sketchPath,
+            toolPath: 'this does not matter',
+            elfPath: 'irrelevant',
+          },
+          userInput: 'alma\nkorte\nszilva',
+          statusMessage,
+          decoderResult: {
+            faultInfo: {
+              faultMessage: 'error message',
+              coreId: 0,
+              faultCode: 1,
+              programCounter: {
+                location: {
+                  regAddr: '0x400d100d',
+                  lineNumber: '17',
+                  file: 'src/main.cpp',
+                  method: 'mainMethod',
+                  args: [
+                    { name: 'arg1', value: 'value1' },
+                    { name: 'arg2', value: 'value2' },
+                  ],
+                },
+                addr: 0x400d100d,
+              },
             },
-            100,
-          ],
-          exception: ['error message', 1],
-          stacktraceLines: [
-            {
-              address: '0x400d100d',
-              line: 'stacktrace line',
+            allocInfo: {
+              allocAddr: {
+                regAddr: '0x400d200d',
+                lineNumber: '12',
+                file: libPath,
+                method: 'myMethod',
+              },
+              allocSize: 100,
             },
-            <ParsedGDBLine>{
-              address: '0x400d400d',
-              line: '123',
-              file: mainSketchFilePath,
-              method: 'otherMethod()',
+            stacktraceLines: [
+              {
+                regAddr: '0x400d100d',
+                lineNumber: 'stacktrace line',
+              },
+              {
+                regAddr: '0x400d400d',
+                lineNumber: '123',
+                file: mainSketchFilePath,
+                method: 'otherMethod',
+              },
+            ],
+            regs: {
+              BAR: 0x400d129d,
+              FOO: 0x00000000,
             },
-          ],
-          registerLocations: {
-            BAR: <ParsedGDBLine>{
-              address: '0x400d129d',
-              line: '36',
-              file: headerPath,
-              method: 'loop()',
-            },
-            FOO: '0x00000000',
           },
         },
-      });
+        stringifier
+      );
       const location = (file: string) =>
-        `${path.dirname(file)}${path.sep}${bold(path.basename(file))}`;
+        `${path.dirname(file)}${path.sep}${path.basename(file)}`;
       const expected = stringifyLines([
         decodeTerminalTitle,
         `Sketch: ${green(sketchPath)} FQBN: ${green(fqbn)}`,
@@ -335,22 +381,30 @@ describe('terminal', () => {
         'korte',
         'szilva',
         '',
-        red('Exception 1: error message'),
-        `${red('BAR')}: ${green('0x400d129d')}: ${blue(
-          'loop()',
-          true
-        )} at ${location(headerPath)}:${bold('36')}`,
-        `${red('FOO')}: ${green('0x00000000')}`,
+        red('0 | error message | 1'),
         '',
-        'Decoding stack results',
-        `${green('0x400d100d')}: stacktrace line`,
-        `${green('0x400d400d')}: ${blue('otherMethod()', true)} at ${location(
-          mainSketchFilePath
-        )}:${bold('123')}`,
+        red('PC -> ') +
+          green('0x400d100d') +
+          ': ' +
+          blue('mainMethod (arg1=value1, arg2=value2)') +
+          ' at src/main.cpp:17',
         '',
-        `${red('Memory allocation of 100 bytes failed at')} ${green(
-          '0x400d200d'
-        )}: ${blue('myMethod()', true)} at ${location(libPath)}:${bold('12')}`,
+        green('0x400d100d') + ': stacktrace line',
+        green('0x400d400d') +
+          ': ' +
+          blue('otherMethod ()') +
+          ' at ' +
+          location(mainSketchFilePath) +
+          ':123',
+        '',
+        red('Memory allocation of 100 bytes failed') +
+          ' at ' +
+          green('0x400d200d') +
+          ': ' +
+          blue('myMethod ()') +
+          ' at ' +
+          location(libPath) +
+          ':12',
         '',
         statusMessage,
         '',
@@ -359,3 +413,32 @@ describe('terminal', () => {
     });
   });
 });
+
+export interface WaitUntilOptions {
+  timeout?: number;
+  interval?: number;
+}
+
+export async function waitUntil(
+  fn: () => void | Promise<void>,
+  { timeout = 2_000, interval = 50 }: WaitUntilOptions = {}
+): Promise<void> {
+  const start = Date.now();
+  let lastError: unknown;
+
+  while (Date.now() - start < timeout) {
+    try {
+      await fn();
+      return;
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AssertionError') {
+        lastError = e;
+        await new Promise((r) => setTimeout(r, interval));
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  throw lastError;
+}
