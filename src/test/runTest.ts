@@ -26,8 +26,6 @@ async function main() {
       extensionTestsEnv.CLI_TEST_CONTEXT = 'SLOW';
     }
 
-    extensionTestsEnv.FORCE_COLOR = '1'; // Force color output in tests
-
     // Download VS Code, unzip it and run the integration test
     await runTests({
       extensionDevelopmentPath,
