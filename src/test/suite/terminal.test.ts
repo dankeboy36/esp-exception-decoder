@@ -267,7 +267,7 @@ describe('terminal', () => {
       ]);
       assert.strictEqual(actual, expected);
     });
-    it('should show decode output', async () => {
+    it('should show decode output', () => {
       const fqbn = 'a:b:c';
       const sketchPath = 'my_sketch';
       const statusMessage = 'paste to decode';
