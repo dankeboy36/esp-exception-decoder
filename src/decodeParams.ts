@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   defaultTargetArch,
   isRiscvFQBN,
+  resolveToolPath,
   type DecodeParams as TrbrDecodeParams,
 } from 'trbr';
 import type { ArduinoState } from 'vscode-arduino-api';
@@ -104,9 +105,11 @@ async function maybeResolveToolPath(
 ): Promise<string | undefined> {
   let toolPath: string | undefined;
   try {
-    const { resolveToolPath } = await import('trbr');
     toolPath = await resolveToolPath({ fqbn, buildProperties });
-  } catch {}
+  } catch (err) {
+    console.log(`Failed to resolve tool path for FQBN '${fqbn}':`, err);
+    console.log(`Using buildProperties:`, JSON.stringify(buildProperties));
+  }
   return toolPath;
 }
 
