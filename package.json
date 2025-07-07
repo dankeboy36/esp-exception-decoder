@@ -55,7 +55,7 @@
   "dependencies": {
     "debug": "^4.4.1",
     "fqbn": "^1.3.1",
-    "trbr": "^0.1.20"
+    "trbr": "^0.1.21"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
