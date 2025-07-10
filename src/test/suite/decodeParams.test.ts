@@ -122,8 +122,10 @@ describe('decodeParams', () => {
           })
         ),
         (reason) =>
-          reason instanceof DecodeParamsError &&
-          /Could not detect the GDB tool path/.test(reason.message)
+          reason instanceof Error &&
+          /Could not find GDB tool for 'esp8266:esp8266:generic'/.test(
+            reason.message
+          )
       );
     });
 

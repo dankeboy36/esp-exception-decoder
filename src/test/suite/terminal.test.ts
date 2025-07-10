@@ -64,6 +64,7 @@ describe('terminal', () => {
           fqbn,
           elfPath: '/path/to/elf',
           toolPath: '/path/to/tool',
+          targetArch: 'xtensa',
         },
         userInput: 'some user input',
         decoderResult: {
@@ -88,6 +89,7 @@ describe('terminal', () => {
           fqbn,
           elfPath: '/path/to/elf',
           toolPath: '/path/to/tool',
+          targetArch: 'xtensa',
         },
         userInput: 'some user input',
         decoderResult: {
@@ -129,6 +131,7 @@ describe('terminal', () => {
           fqbn,
           elfPath: '/path/to/elf',
           toolPath: '/path/to/tool',
+          targetArch: 'xtensa',
         },
       };
       terminal.handleInput('line1\rline2\r\nline3\rline4\nline5');
@@ -196,6 +199,7 @@ describe('terminal', () => {
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
+          targetArch: 'xtensa',
         },
         statusMessage,
       });
@@ -219,6 +223,7 @@ describe('terminal', () => {
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
+          targetArch: 'xtensa',
         },
         userInput: 'alma\nkorte\nszilva',
         statusMessage,
@@ -247,6 +252,7 @@ describe('terminal', () => {
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
+          targetArch: 'xtensa',
         },
         userInput: 'alma\nkorte\nszilva',
         statusMessage,
@@ -282,6 +288,7 @@ describe('terminal', () => {
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
+          targetArch: 'xtensa',
         },
         userInput: 'alma\nkorte\nszilva',
         statusMessage,

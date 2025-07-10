@@ -1,9 +1,7 @@
 import { FQBN } from 'fqbn';
 import path from 'node:path';
 import {
-  defaultTargetArch,
-  isRiscvFQBN,
-  resolveToolPath,
+  createDecodeParams as trbrCreateDecodeParams,
   type DecodeParams as TrbrDecodeParams,
 } from 'trbr';
 import type { ArduinoState } from 'vscode-arduino-api';
@@ -50,34 +48,25 @@ export async function createDecodeParams(
     );
   }
   const { buildPath } = compileSummary;
-  const { buildProperties } = boardDetails;
   const sketchFolderName = path.basename(sketchPath);
-  const [toolPath, elfPath] = await Promise.all([
-    maybeResolveToolPath(fqbn, buildProperties),
-    findElfPath(sketchFolderName, buildPath),
-  ]);
+  const elfPath = await findElfPath(sketchFolderName, buildPath);
   if (!elfPath) {
     throw new DecodeParamsError(
       `Could not detect the '.elf' file in the build folder`,
       { sketchPath, fqbn }
     );
   }
-  if (!toolPath) {
-    throw new DecodeParamsError('Could not detect the GDB tool path', {
-      sketchPath,
-      fqbn,
-    });
-  }
-  let targetArch: DecodeParams['targetArch'] = defaultTargetArch;
-  if (isRiscvFQBN(fqbn)) {
-    targetArch = fqbn.boardId;
-  }
-  return {
-    toolPath,
+  const { buildProperties } = boardDetails;
+  const decodeParams = await trbrCreateDecodeParams({
     elfPath,
     fqbn,
+    buildProperties,
+  });
+
+  return {
+    ...decodeParams,
+    fqbn,
     sketchPath,
-    targetArch,
   };
 }
 
@@ -97,20 +86,6 @@ export class DecodeParamsError extends Error {
   get sketchPath(): string {
     return this.partial.sketchPath;
   }
-}
-
-async function maybeResolveToolPath(
-  fqbn: FQBN,
-  buildProperties: Record<string, string>
-): Promise<string | undefined> {
-  let toolPath: string | undefined;
-  try {
-    toolPath = await resolveToolPath({ fqbn, buildProperties });
-  } catch (err) {
-    console.log(`Failed to resolve tool path for FQBN '${fqbn}':`, err);
-    console.log(`Using buildProperties:`, JSON.stringify(buildProperties));
-  }
-  return toolPath;
 }
 
 async function findElfPath(
