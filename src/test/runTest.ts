@@ -20,12 +20,6 @@ async function main() {
       extensionTestsEnv['TEST_DEBUG'] = extensionTestsEnv.DEBUG;
     }
 
-    const args = process.argv.splice(2);
-    const slow = args.includes('--slow');
-    if (slow) {
-      extensionTestsEnv.CLI_TEST_CONTEXT = 'SLOW';
-    }
-
     // Download VS Code, unzip it and run the integration test
     await runTests({
       extensionDevelopmentPath,
