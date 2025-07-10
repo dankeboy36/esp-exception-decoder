@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/dankeboy36/esp-exception-decoder/compare/1.1.0...1.1.1) (2025-07-10)
+
+
+### Bug Fixes
+
+* add missing stacktraces for RISC-V ([#40](https://github.com/dankeboy36/esp-exception-decoder/issues/40)) ([b31b7c6](https://github.com/dankeboy36/esp-exception-decoder/commit/b31b7c6ca38c932f7f77c14e7240f14bca9d0163))
+
 # [1.1.0](https://github.com/dankeboy36/esp-exception-decoder/compare/1.0.2...1.1.0) (2025-03-06)
 
 
