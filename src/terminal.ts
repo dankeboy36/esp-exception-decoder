@@ -1,17 +1,13 @@
 import debug from 'debug';
 import path from 'node:path';
+import { DecodeResult, decode, stringifyDecodeResult } from 'trbr';
 import vscode from 'vscode';
 import type { ArduinoContext } from 'vscode-arduino-api';
 import {
   DecodeParams,
   DecodeParamsError,
-  DecodeResult,
-  GDBLine,
-  Location,
   createDecodeParams,
-  decode,
-  isParsedGDBLine,
-} from './decoder';
+} from './decodeParams';
 import { Debug } from './utils';
 
 const terminalDebug: Debug = debug('espExceptionDecoder:terminal');
@@ -36,7 +32,7 @@ export function activateDecoderTerminal(
   context.subscriptions.push(
     new vscode.Disposable(() => _debugOutput?.dispose()),
     vscode.commands.registerCommand('espExceptionDecoder.showTerminal', () =>
-      openTerminal(arduinoContext, decode, {
+      openTerminal(arduinoContext, {
         show: true,
         debug: createDebugOutput(),
       })
@@ -46,7 +42,6 @@ export function activateDecoderTerminal(
 
 function openTerminal(
   arduinoContext: ArduinoContext,
-  decoder: typeof decode = decode,
   options: { show: boolean; debug: Debug } = {
     show: true,
     debug: terminalDebug,
@@ -54,8 +49,7 @@ function openTerminal(
 ): vscode.Terminal {
   const { debug, show } = options;
   const terminal =
-    findDecodeTerminal() ??
-    createDecodeTerminal(arduinoContext, decoder, debug);
+    findDecodeTerminal() ?? createDecodeTerminal(arduinoContext, debug);
   if (show) {
     terminal.show();
   }
@@ -71,10 +65,9 @@ function findDecodeTerminal(): vscode.Terminal | undefined {
 
 function createDecodeTerminal(
   arduinoContext: ArduinoContext,
-  decoder: typeof decode,
   debug: Debug
 ): vscode.Terminal {
-  const pty = new DecoderTerminal(arduinoContext, decoder, debug);
+  const pty = new DecoderTerminal(arduinoContext, debug);
   const options: vscode.ExtensionTerminalOptions = {
     name: decodeTerminalName,
     pty,
@@ -109,7 +102,6 @@ class DecoderTerminal implements vscode.Pseudoterminal {
 
   constructor(
     private readonly arduinoContext: ArduinoContext,
-    private readonly decoder: typeof decode = decode,
     private readonly debug: Debug = terminalDebug
   ) {
     this.onDidWriteEmitter = new vscode.EventEmitter<string>();
@@ -169,10 +161,16 @@ class DecoderTerminal implements vscode.Pseudoterminal {
     const signal = this.abortController.signal;
     let decoderResult: DecodeTerminalState['decoderResult'];
     try {
-      decoderResult = await this.decoder(params, data, {
+      const result = await decode(params, data, {
         signal,
         debug: this.debug,
       });
+      if (Array.isArray(result)) {
+        throw new Error(
+          'Unexpectedly received a coredump result from the decoder.'
+        );
+      }
+      decoderResult = result;
     } catch (err) {
       this.abortController.abort();
       decoderResult = err instanceof Error ? err : new Error(String(err));
@@ -238,12 +236,17 @@ function stringifyTerminalState(state: DecodeTerminalState): string {
         lines.push('', userInput);
       }
       if (decoderResult) {
-        lines.push(
-          '',
-          decoderResult instanceof Error
-            ? red(toTerminalEOL(decoderResult.message))
-            : stringifyDecodeResult(decoderResult)
-        );
+        lines.push('');
+        if (decoderResult instanceof Error) {
+          lines.push(red(toTerminalEOL(decoderResult.message)));
+        } else {
+          lines.push(
+            ...stringifyDecodeResult(decoderResult, {
+              lineSeparator: terminalEOL,
+              color: 'force',
+            }).split(terminalEOL)
+          );
+        }
       }
     }
     if (statusMessage) {
@@ -251,55 +254,6 @@ function stringifyTerminalState(state: DecodeTerminalState): string {
     }
   }
   return stringifyLines(lines);
-}
-
-function stringifyDecodeResult(decodeResult: DecodeResult): string {
-  const lines: string[] = [];
-  if (decodeResult.exception) {
-    const [message, code] = decodeResult.exception;
-    lines.push(red(`Exception ${code}: ${message}`));
-  }
-  const registerLines = Object.entries(decodeResult.registerLocations);
-  for (const [name, location] of registerLines) {
-    lines.push(`${red(name)}: ${stringifyLocation(location)}`);
-  }
-  if (registerLines.length) {
-    lines.push('');
-  }
-  if (decodeResult.stacktraceLines.length) {
-    lines.push('Decoding stack results');
-  }
-  lines.push(...decodeResult.stacktraceLines.map(stringifyGDBLine));
-  if (decodeResult.allocLocation) {
-    const [location, size] = decodeResult.allocLocation;
-    lines.push(
-      '',
-      `${red(
-        `Memory allocation of ${size} bytes failed at`
-      )} ${stringifyLocation(location)}`
-    );
-  }
-  return stringifyLines(lines);
-}
-
-function stringifyLocation(location: Location): string {
-  return typeof location === 'string'
-    ? green(location)
-    : stringifyGDBLine(location);
-}
-
-function stringifyGDBLine(gdbLine: GDBLine): string {
-  const { address, line } = gdbLine;
-  if (!isParsedGDBLine(gdbLine)) {
-    // Something weird in the GDB output format, report what we can
-    return `${green(address)}: ${line}`;
-  }
-  const filename = path.basename(gdbLine.file);
-  const dirname = path.dirname(gdbLine.file);
-  const file = `${dirname}${path.sep}${bold(filename)}`;
-  return `${green(address)}: ${blue(gdbLine.method, true)} at ${file}:${bold(
-    line
-  )}`;
 }
 
 function stringifyLines(lines: string[]): string {
@@ -312,9 +266,8 @@ function toTerminalEOL(data: string): string {
 
 const terminalEOL = '\r\n';
 const clear = '\x1b[2J\x1b[3J\x1b[;H';
-const resetStyle = '\x1b[0m';
+const resetFgColorStyle = '\x1b[39m';
 enum ANSIStyle {
-  'bold' = 1,
   'red' = 31,
   'green' = 32,
   'blue' = 34,
@@ -322,23 +275,14 @@ enum ANSIStyle {
 function red(text: string): string {
   return color(text, ANSIStyle.red);
 }
-function green(text: string, isBold = false): string {
-  return color(text, ANSIStyle.green, isBold);
+function green(text: string): string {
+  return color(text, ANSIStyle.green);
 }
-function blue(text: string, isBold = false): string {
-  return color(text, ANSIStyle.blue, isBold);
+function blue(text: string): string {
+  return color(text, ANSIStyle.blue);
 }
-function bold(text: string): string {
-  return `\x1b[${ANSIStyle.bold}m${text}${resetStyle}`;
-}
-function color(
-  text: string,
-  foregroundColor: ANSIStyle,
-  isBold = false
-): string {
-  return `\x1b[${foregroundColor}${
-    isBold ? `;${ANSIStyle.bold}` : ''
-  }m${text}${resetStyle}`;
+function color(text: string, foregroundColor: ANSIStyle): string {
+  return `\x1b[${foregroundColor}m${text}${resetFgColorStyle}`;
 }
 
 /**
@@ -353,5 +297,4 @@ export const __tests = {
   red,
   green,
   blue,
-  bold,
 } as const;

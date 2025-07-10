@@ -2,7 +2,7 @@ import { FQBN } from 'fqbn';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import vscode from 'vscode';
-import { DecodeParamsError, ParsedGDBLine } from '../../decoder';
+import { DecodeParamsError } from '../../decodeParams';
 import { __tests } from '../../terminal';
 import { mockArduinoContext } from './mock';
 
@@ -15,7 +15,6 @@ const {
   red,
   green,
   blue,
-  bold,
 } = __tests;
 
 describe('terminal', () => {
@@ -65,13 +64,13 @@ describe('terminal', () => {
           fqbn,
           elfPath: '/path/to/elf',
           toolPath: '/path/to/tool',
+          targetArch: 'xtensa',
         },
         userInput: 'some user input',
         decoderResult: {
-          registerLocations: {},
-          exception: undefined,
-          allocLocation: undefined,
-          stacktraceLines: [{ address: '0x00002710', line: 'bla bla' }],
+          stacktraceLines: [
+            { regAddr: '0x00002710', lineNumber: 'bla bla' } as const,
+          ],
         },
       };
       terminal['updateState']({ params: new Error('boom') });
@@ -90,13 +89,13 @@ describe('terminal', () => {
           fqbn,
           elfPath: '/path/to/elf',
           toolPath: '/path/to/tool',
+          targetArch: 'xtensa',
         },
         userInput: 'some user input',
         decoderResult: {
-          registerLocations: {},
-          exception: undefined,
-          allocLocation: undefined,
-          stacktraceLines: [{ address: '0x00002710', line: 'bla bla' }],
+          stacktraceLines: [
+            { regAddr: '0x00002710', lineNumber: 'bla bla' } as const,
+          ],
         },
         statusMessage: 'idle',
       };
@@ -109,14 +108,11 @@ describe('terminal', () => {
         (<{ statusMessage: string }>terminal['state']).statusMessage.length > 0,
         true
       );
-      await new Promise((resolve) => setTimeout(resolve, 100)); // TODO: listen on state did change event
-      assert.strictEqual(
-        <unknown>terminal['state'].decoderResult instanceof Error,
-        true
-      );
-      assert.strictEqual(
-        (<Error>(<unknown>terminal['state'].decoderResult)).message,
-        'Could not recognize stack trace/backtrace'
+      await waitUntil(() =>
+        assert.strictEqual(
+          (<Error>(<unknown>terminal['state'].decoderResult))?.message,
+          'No register addresses found to decode'
+        )
       );
       assert.strictEqual(
         terminal['state'].userInput,
@@ -135,17 +131,19 @@ describe('terminal', () => {
           fqbn,
           elfPath: '/path/to/elf',
           toolPath: '/path/to/tool',
+          targetArch: 'xtensa',
         },
       };
       terminal.handleInput('line1\rline2\r\nline3\rline4\nline5');
-      await new Promise((resolve) => setTimeout(resolve, 100)); // TODO: listen on state did change event
-      assert.strictEqual(
-        terminal['state'].decoderResult instanceof Error,
-        true
+      await waitUntil(() =>
+        assert.strictEqual(
+          terminal['state'].decoderResult instanceof Error,
+          true
+        )
       );
       assert.strictEqual(
         (<Error>terminal['state'].decoderResult).message,
-        'Could not recognize stack trace/backtrace'
+        'No register addresses found to decode'
       );
       assert.strictEqual(
         terminal['state'].userInput,
@@ -201,6 +199,7 @@ describe('terminal', () => {
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
+          targetArch: 'xtensa',
         },
         statusMessage,
       });
@@ -224,6 +223,7 @@ describe('terminal', () => {
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
+          targetArch: 'xtensa',
         },
         userInput: 'alma\nkorte\nszilva',
         statusMessage,
@@ -252,6 +252,7 @@ describe('terminal', () => {
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
+          targetArch: 'xtensa',
         },
         userInput: 'alma\nkorte\nszilva',
         statusMessage,
@@ -277,7 +278,6 @@ describe('terminal', () => {
       const sketchPath = 'my_sketch';
       const statusMessage = 'paste to decode';
       const libPath = path.join(__dirname, 'path/to/lib.cpp');
-      const headerPath = path.join(__dirname, 'path/to/header.h');
       const mainSketchFilePath = path.join(
         __dirname,
         'path/to/main_sketch.ino'
@@ -288,45 +288,58 @@ describe('terminal', () => {
           sketchPath,
           toolPath: 'this does not matter',
           elfPath: 'irrelevant',
+          targetArch: 'xtensa',
         },
         userInput: 'alma\nkorte\nszilva',
         statusMessage,
         decoderResult: {
-          allocLocation: [
-            <ParsedGDBLine>{
-              address: '0x400d200d',
-              line: '12',
-              file: libPath,
-              method: 'myMethod()',
+          faultInfo: {
+            faultMessage: 'error message',
+            coreId: 0,
+            faultCode: 1,
+            programCounter: {
+              location: {
+                regAddr: '0x400d100d',
+                lineNumber: '17',
+                file: 'src/main.cpp',
+                method: 'mainMethod',
+                args: [
+                  { name: 'arg1', value: 'value1' },
+                  { name: 'arg2', value: 'value2' },
+                ],
+              },
+              addr: 0x400d100d,
             },
-            100,
-          ],
-          exception: ['error message', 1],
+          },
+          allocInfo: {
+            allocAddr: {
+              regAddr: '0x400d200d',
+              lineNumber: '12',
+              file: libPath,
+              method: 'myMethod',
+            },
+            allocSize: 100,
+          },
           stacktraceLines: [
             {
-              address: '0x400d100d',
-              line: 'stacktrace line',
+              regAddr: '0x400d100d',
+              lineNumber: 'stacktrace line',
             },
-            <ParsedGDBLine>{
-              address: '0x400d400d',
-              line: '123',
+            {
+              regAddr: '0x400d400d',
+              lineNumber: '123',
               file: mainSketchFilePath,
-              method: 'otherMethod()',
+              method: 'otherMethod',
             },
           ],
-          registerLocations: {
-            BAR: <ParsedGDBLine>{
-              address: '0x400d129d',
-              line: '36',
-              file: headerPath,
-              method: 'loop()',
-            },
-            FOO: '0x00000000',
+          regs: {
+            BAR: 0x400d129d,
+            FOO: 0x00000000,
           },
         },
       });
       const location = (file: string) =>
-        `${path.dirname(file)}${path.sep}${bold(path.basename(file))}`;
+        `${path.dirname(file)}${path.sep}${path.basename(file)}`;
       const expected = stringifyLines([
         decodeTerminalTitle,
         `Sketch: ${green(sketchPath)} FQBN: ${green(fqbn)}`,
@@ -335,22 +348,30 @@ describe('terminal', () => {
         'korte',
         'szilva',
         '',
-        red('Exception 1: error message'),
-        `${red('BAR')}: ${green('0x400d129d')}: ${blue(
-          'loop()',
-          true
-        )} at ${location(headerPath)}:${bold('36')}`,
-        `${red('FOO')}: ${green('0x00000000')}`,
+        red('0 | error message | 1'),
         '',
-        'Decoding stack results',
-        `${green('0x400d100d')}: stacktrace line`,
-        `${green('0x400d400d')}: ${blue('otherMethod()', true)} at ${location(
-          mainSketchFilePath
-        )}:${bold('123')}`,
+        red('PC -> ') +
+          green('0x400d100d') +
+          ': ' +
+          blue('mainMethod (arg1=value1, arg2=value2)') +
+          ' at src/main.cpp:17',
         '',
-        `${red('Memory allocation of 100 bytes failed at')} ${green(
-          '0x400d200d'
-        )}: ${blue('myMethod()', true)} at ${location(libPath)}:${bold('12')}`,
+        green('0x400d100d') + ': stacktrace line',
+        green('0x400d400d') +
+          ': ' +
+          blue('otherMethod ()') +
+          ' at ' +
+          location(mainSketchFilePath) +
+          ':123',
+        '',
+        red('Memory allocation of 100 bytes failed') +
+          ' at ' +
+          green('0x400d200d') +
+          ': ' +
+          blue('myMethod ()') +
+          ' at ' +
+          location(libPath) +
+          ':12',
         '',
         statusMessage,
         '',
@@ -359,3 +380,32 @@ describe('terminal', () => {
     });
   });
 });
+
+export interface WaitUntilOptions {
+  timeout?: number;
+  interval?: number;
+}
+
+export async function waitUntil(
+  fn: () => void | Promise<void>,
+  { timeout = 2_000, interval = 50 }: WaitUntilOptions = {}
+): Promise<void> {
+  const start = Date.now();
+  let lastError: unknown;
+
+  while (Date.now() - start < timeout) {
+    try {
+      await fn();
+      return;
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AssertionError') {
+        lastError = e;
+        await new Promise((r) => setTimeout(r, interval));
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  throw lastError;
+}

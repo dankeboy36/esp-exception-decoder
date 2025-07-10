@@ -1,6 +1,9 @@
 # Taken from stephenh/ts-proto. Thank you!
 # https://github.com/stephenh/ts-proto/blob/1f73bad91fe33c497d5168b9f0847ad596ffec39/.github/workflows/pr-title.yml
 name: PR Title
+permissions:
+  contents: read
+  pull-requests: write
 
 on:
   pull_request_target:

@@ -1,10 +1,6 @@
 # ESP Exception Decoder
 
-[![Tests](https://github.com/dankeboy36/esp-exception-decoder/actions/workflows/build.yml/badge.svg)](https://github.com/dankeboy36/esp-exception-decoder/actions/workflows/build.yml)
-
-> ⚠️ This project is in an early state.
-
-[Arduino IDE](https://github.com/arduino/arduino-ide/) extension allows you to get a more meaningful explanation of the stack traces and backtraces you encounter on ESP8266/ESP32. This extension is a reimplementation of the well-known [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder) tool, which was originally written in Java. The RISC-V decoder implementation was ported from [`esp_idf_monitor`](https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py).
+ESP Exception Decoder is an Arduino IDE 2.x extension that helps you understand stack traces and backtraces from ESP8266/ESP32 boards. It uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) internally. This project is inspired by the original Java-based [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder). The RISC-V decoder implementation originates from the [`esp_idf_monitor`](https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py).
 
 ![ESP8266/ESP32 Exception Decoder Extension](./images/espExceptionDecoder_main.png)
 
@@ -73,8 +69,6 @@ To update to the latest or a more recent version of the decoder extension, simpl
    ```sh
    npm run test
    ```
-
-   > **ⓘ** You can run the _slow_ test with `npm run test-slow` and all tests with `npm run test-all`.
 
 ## Hints
 
