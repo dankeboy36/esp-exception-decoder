@@ -13,8 +13,7 @@ ESP Exception Decoder is an Arduino IDE 2.x extension that helps you understand 
 ## Installation
 
 1. Download the latest extension from the GitHub [release page](https://github.com/dankeboy36/esp-exception-decoder/releases/latest). The filename should be `esp-exception-decoder-${VERSION}.vsix`, where `${VERSION}` is the latest version.
-2. Make sure the Arduino IDE is not running.  
-   Ensure you are using Arduino IDE version 2.2.0 or newer. Then, copy the downloaded extension into the `plugins` folder located in the Arduino IDE's configuration directory. If the `plugins` folder does not exist, create it.
+2. Make sure the Arduino IDE is not running. Then, copy the downloaded extension into the `plugins` folder located in the Arduino IDE's configuration directory. If the `plugins` folder does not exist, create it.
    - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
    - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
      > **ⓘ** If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
