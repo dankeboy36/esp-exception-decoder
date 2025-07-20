@@ -2,13 +2,13 @@
 
 ESP Exception Decoder is an Arduino IDE 2.x extension that helps you understand stack traces and backtraces from ESP8266/ESP32 boards. It uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) internally. This project is inspired by the original Java-based [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder). The RISC-V decoder implementation originates from the [`esp_idf_monitor`](https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py).
 
-## Requirements
-
-- **Arduino IDE 2.2.0 or newer** is required. The extension relies on features introduced in [arduino/arduino-ide#2110](https://github.com/arduino/arduino-ide/issues/2110). Earlier versions (such as 2.1.1) are not supported and will result in errors like "Sketch path is not set".
-
 ![ESP8266/ESP32 Exception Decoder Extension](./images/espExceptionDecoder_main.png)
 
 > ⚠️ This extension is not related to the [Visual Studio Code extension for Arduino](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.vscode-arduino). Please note that this extension does not work in VS Code.
+
+## Requirements
+
+**Arduino IDE 2.2.0 or newer** is required. The extension relies on features introduced in [arduino/arduino-ide#2110](https://github.com/arduino/arduino-ide/issues/2110). Earlier versions (such as 2.1.1) are not supported and will result in errors like ["Sketch path is not set"](https://github.com/dankeboy36/esp-exception-decoder/issues/45).
 
 ## Installation
 
