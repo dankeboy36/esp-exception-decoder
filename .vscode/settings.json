@@ -1,15 +1,21 @@
 {
   "files.exclude": {
-    "out": false,
-    "dist": false
+    "out": false
   },
   "search.exclude": {
-    "out": true,
-    "dist": true
+    "out": true
   },
   "typescript.tsc.autoDetect": "off",
   "typescript.tsdk": "./node_modules/typescript/lib",
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
-  }
+  },
+  "[javascript][javascriptreact][json][typescript][typescriptreact][css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true
+  },
+  "eslint.format.enable": true,
+  "js/ts.implicitProjectConfig.checkJs": true,
+  "js/ts.implicitProjectConfig.module": "NodeNext"
 }

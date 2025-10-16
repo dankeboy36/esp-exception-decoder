@@ -1,29 +1,90 @@
-import vscode from 'vscode';
-import type { ArduinoContext } from 'vscode-arduino-api';
-import { activateDecoderTerminal } from './terminal';
+import vscode from 'vscode'
+import type { ArduinoContext } from 'vscode-arduino-api'
+
+import { activateDecoderTerminal } from './terminal'
 
 export function activate(context: vscode.ExtensionContext): void {
-  findArduinoContext().then((arduinoContext) => {
-    if (!arduinoContext) {
+  findArduinoContext()
+    .then((arduinoContext) => {
+      if (arduinoContext) {
+        activateDecoderTerminal(context, arduinoContext)
+      }
+    })
+    .catch((err) => {
       vscode.window.showErrorMessage(
-        `Could not find th '${vscodeArduinoAPI}' extension must be installed.`
-      );
-      return;
-    }
-    activateDecoderTerminal(context, arduinoContext);
-  });
+        `Failed to activate extension: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      )
+    })
 }
+
+const runsInCode = typeof process !== 'undefined' && process.env.VSCODE_PID
 
 async function findArduinoContext(): Promise<ArduinoContext | undefined> {
-  const apiExtension = findArduinoApiExtension();
-  if (apiExtension && !apiExtension.isActive) {
-    await apiExtension.activate();
+  const extension = runsInCode
+    ? findExtensionApiForVSCode()
+    : findExtensionApiForArduinoIde2()
+  if (!extension) {
+    return undefined
   }
-  return apiExtension?.exports;
+  if (!extension.isActive) {
+    await extension.activate()
+  }
+  const exports = extractArduinoContext(extension.exports)
+  if (!exports) {
+    vscode.window.showErrorMessage(
+      `'${extension.id}' did not expose the Arduino context API`
+    )
+  }
+  return exports
 }
 
-const vscodeArduinoAPI = 'dankeboy36.vscode-arduino-api';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function findArduinoApiExtension(): vscode.Extension<any> | undefined {
-  return vscode.extensions.getExtension(vscodeArduinoAPI);
+function findExtensionApiForArduinoIde2(): vscode.Extension<any> | undefined {
+  return findExtensionOrLogError('dankeboy36.vscode-arduino-api')
+}
+
+function findExtensionApiForVSCode(): vscode.Extension<any> | undefined {
+  return (
+    findExtensionOrLogError('dankeboy36.vscode-ardunno') ??
+    findExtensionOrLogError('undefined_publisher.vscode-ardunno')
+  )
+}
+
+function findExtensionOrLogError(
+  extensionId: string
+): vscode.Extension<any> | undefined {
+  const extension = vscode.extensions.getExtension(extensionId)
+  if (!extension) {
+    vscode.window.showErrorMessage(
+      `Could not find the '${extensionId}' extension`
+    )
+  }
+  return extension
+}
+
+function extractArduinoContext(candidate: any): ArduinoContext | undefined {
+  if (isArduinoContext(candidate)) {
+    return candidate
+  }
+  if (
+    candidate &&
+    typeof candidate === 'object' &&
+    isArduinoContext(candidate.arduinoContext)
+  ) {
+    return candidate.arduinoContext
+  }
+  return undefined
+}
+
+function isArduinoContext(value: unknown): value is ArduinoContext {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  const candidate = value as ArduinoContext
+  return (
+    Array.isArray(candidate.openedSketches) &&
+    typeof candidate.onDidChangeCurrentSketch === 'function' &&
+    typeof candidate.onDidChangeSketch === 'function'
+  )
 }
