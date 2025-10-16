@@ -1,9 +1,11 @@
 {
   "files.exclude": {
-    "out": false
+    "out": false,
+    "dir": false
   },
   "search.exclude": {
-    "out": true
+    "out": true,
+    "dir": true
   },
   "typescript.tsc.autoDetect": "off",
   "typescript.tsdk": "./node_modules/typescript/lib",

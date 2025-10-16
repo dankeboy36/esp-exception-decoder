@@ -8,7 +8,7 @@ export default [
   ...neostandard({
     semi: false,
     ts: true,
-    ignores: ['out', 'dist', 'node_modules'],
+    ignores: ['out', 'dist', 'node_modules', '.vscode-test', '.nyc_output'],
   }),
   {
     plugins: {
