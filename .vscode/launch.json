@@ -27,26 +27,6 @@
         "${workspaceFolder}/dist/**/*.js"
       ],
       "preLaunchTask": "tasks: watch-tests"
-    },
-    {
-      "name": "Extension Tests (Slow)",
-      "type": "extensionHost",
-      "request": "launch",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
-        "--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
-      ],
-      "env": {
-        "CLI_TEST_CONTEXT": "slow",
-        "NO_TEST_TIMEOUT": "true",
-        "NO_TEST_COVERAGE": "true",
-        "TEST_DEBUG": "espExceptionDecoder*"
-      },
-      "outFiles": [
-        "${workspaceFolder}/out/**/*.js",
-        "${workspaceFolder}/dist/**/*.js"
-      ],
-      "preLaunchTask": "tasks: watch-tests"
     }
   ]
 }

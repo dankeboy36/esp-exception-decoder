@@ -1,38 +1,76 @@
-import vscode from 'vscode';
+import vscode from 'vscode'
 import type {
   ArduinoContext,
   ArduinoState,
   BoardDetails,
   BuildProperties,
+  ChangeEvent,
+  CliConfig,
   CompileSummary,
-} from 'vscode-arduino-api';
-
-const never = new vscode.EventEmitter<void>().event;
-const neverDidChange = <T extends keyof ArduinoState>() =>
-  never as vscode.Event<unknown> as vscode.Event<ArduinoState[T]>;
+  SketchFolder,
+  SketchFoldersChangeEvent,
+} from 'vscode-arduino-api'
 
 export function mockArduinoContext(
-  state?: Partial<ArduinoState>,
-  onDidChange?: ArduinoContext['onDidChange']
+  options: {
+    currentSketch?: SketchFolder
+    openedSketches?: readonly SketchFolder[]
+  } = {}
 ): ArduinoContext {
-  const mock = mockArduinoState(state);
+  const {
+    currentSketch,
+    openedSketches = currentSketch ? [currentSketch] : [],
+  } = options
+  const onDidChangeCurrentSketchEmitter = new vscode.EventEmitter<
+    SketchFolder | undefined
+  >()
+  const onDidChangeSketchEmitter = new vscode.EventEmitter<
+    ChangeEvent<SketchFolder>
+  >()
+  const onDidChangeSketchFoldersEmitter =
+    new vscode.EventEmitter<SketchFoldersChangeEvent>()
+  const onDidChangeConfigEmitter = new vscode.EventEmitter<
+    ChangeEvent<CliConfig>
+  >()
+  const onDidChangeDeprecatedEmitter = new vscode.EventEmitter<unknown>()
+
+  const boardDetails = isBoardDetails(currentSketch?.board)
+    ? currentSketch?.board
+    : undefined
+
   return {
-    ...mock,
-    onDidChange: onDidChange ?? neverDidChange,
-  };
+    openedSketches,
+    currentSketch,
+    onDidChangeCurrentSketch: onDidChangeCurrentSketchEmitter.event,
+    onDidChangeSketch: onDidChangeSketchEmitter.event,
+    onDidChangeSketchFolders: onDidChangeSketchFoldersEmitter.event,
+    config: { dataDirPath: undefined, userDirPath: undefined },
+    onDidChangeConfig: onDidChangeConfigEmitter.event,
+    onDidChange<T extends keyof ArduinoState>() {
+      return onDidChangeDeprecatedEmitter.event as vscode.Event<ArduinoState[T]>
+    },
+    sketchPath: currentSketch?.sketchPath,
+    compileSummary: currentSketch?.compileSummary,
+    fqbn: boardDetails?.fqbn,
+    boardDetails,
+    port: undefined,
+    userDirPath: undefined,
+    dataDirPath: undefined,
+  }
 }
 
-export function mockArduinoState(state?: Partial<ArduinoState>): ArduinoState {
+export function mockSketchFolder(
+  overrides: Partial<SketchFolder> = {}
+): SketchFolder {
   return {
-    fqbn: undefined,
-    boardDetails: undefined,
+    board: undefined,
     compileSummary: undefined,
-    dataDirPath: undefined,
+    configOptions: undefined,
     port: undefined,
-    sketchPath: undefined,
-    userDirPath: undefined,
-    ...state,
-  };
+    selectedProgrammer: undefined,
+    sketchPath: '/tmp/mock-sketch',
+    ...overrides,
+  }
 }
 
 export function mockBoardDetails(
@@ -44,8 +82,10 @@ export function mockBoardDetails(
     buildProperties,
     configOptions: [],
     programmers: [],
+    defaultProgrammerId: 'mock-programmer',
     toolsDependencies: [],
-  };
+    name: 'Mock Board',
+  }
 }
 
 export function mockCompileSummary(buildPath: string): CompileSummary {
@@ -56,5 +96,11 @@ export function mockCompileSummary(buildPath: string): CompileSummary {
     buildProperties: {},
     executableSectionsSize: [],
     usedLibraries: [],
-  };
+  }
+}
+
+function isBoardDetails(
+  board: SketchFolder['board']
+): board is BoardDetails & { fqbn: string } {
+  return Boolean(board && 'buildProperties' in board)
 }

@@ -1,8 +1,8 @@
 //@ts-check
-'use strict';
+'use strict'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const path = require('path');
+const path = require('path')
 
 /** @type {import('webpack').Configuration} */
 const extensionConfig = {
@@ -37,5 +37,5 @@ const extensionConfig = {
   infrastructureLogging: {
     level: 'log',
   },
-};
-module.exports = [extensionConfig];
+}
+module.exports = [extensionConfig]

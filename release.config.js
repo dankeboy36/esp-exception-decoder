@@ -1,5 +1,7 @@
-//@ts-check
-'use strict';
+// @ts-check
+'use strict'
+
+/* eslint-disable no-template-curly-in-string */
 
 /** @type {import('semantic-release').Options} */
 module.exports = {
@@ -36,4 +38,4 @@ module.exports = {
       },
     ],
   ],
-};
+}

@@ -1,73 +1,84 @@
-import { FQBN } from 'fqbn';
-import path from 'node:path';
+import path from 'node:path'
+
+import { FQBN } from 'fqbn'
 import {
   createDecodeParams as trbrCreateDecodeParams,
   type DecodeParams as TrbrDecodeParams,
-} from 'trbr';
-import type { ArduinoState } from 'vscode-arduino-api';
+} from 'trbr'
+import type { BoardDetails, SketchFolder } from 'vscode-arduino-api'
 
-import { access } from './utils';
+import { access } from './utils'
 
 export interface DecodeParams extends TrbrDecodeParams {
-  fqbn: FQBN;
-  sketchPath: string;
+  fqbn: FQBN
+  sketchPath: string
 }
 
-const esp32 = 'esp32';
-const esp8266 = 'esp8266';
-const supportedArchitectures = new Set([esp32, esp8266]);
+const esp32 = 'esp32'
+const esp8266 = 'esp8266'
+const supportedArchitectures = new Set([esp32, esp8266])
 
 export async function createDecodeParams(
-  arduinoState: ArduinoState
+  sketchFolder: SketchFolder
 ): Promise<DecodeParams> {
-  const { boardDetails, compileSummary, sketchPath } = arduinoState;
+  const { compileSummary, sketchPath, board } = sketchFolder
   if (!sketchPath) {
-    throw new Error('Sketch path is not set');
+    throw new Error('Sketch path is not set')
   }
-  if (!arduinoState.fqbn) {
-    throw new Error('No board selected');
+  if (!board) {
+    throw new Error('No board selected')
   }
-  const fqbn = new FQBN(arduinoState.fqbn).sanitize();
-  const { vendor, arch } = fqbn;
-  if (!boardDetails) {
+  if (!board.fqbn) {
+    throw new Error(`No FQBN is set for board ${board.name}`)
+  }
+  const fqbn = new FQBN(board.fqbn).sanitize()
+  const { vendor, arch } = fqbn
+  if (!isBoardDetails(board)) {
     throw new DecodeParamsError(
       `Platform '${vendor}:${arch}' is not installed`,
       { sketchPath, fqbn }
-    );
+    )
   }
   if (!supportedArchitectures.has(fqbn.arch)) {
     throw new DecodeParamsError(`Unsupported board: '${fqbn}'`, {
       sketchPath,
       fqbn,
-    });
+    })
   }
   if (!compileSummary) {
     throw new DecodeParamsError(
       'The summary of the previous compilation is unavailable. Compile the sketch',
       { sketchPath, fqbn }
-    );
+    )
   }
-  const { buildPath } = compileSummary;
-  const sketchFolderName = path.basename(sketchPath);
-  const elfPath = await findElfPath(sketchFolderName, buildPath);
+  const { buildPath } = compileSummary
+  // https://github.com/dankeboy36/vscode-arduino-api/issues/18
+  if (typeof buildPath !== 'string') {
+    throw new DecodeParamsError(
+      'The summary of the previous compilation does not contain a build path. Compile the sketch',
+      { sketchPath, fqbn }
+    )
+  }
+  const sketchFolderName = path.basename(sketchPath)
+  const elfPath = await findElfPath(sketchFolderName, buildPath)
   if (!elfPath) {
     throw new DecodeParamsError(
-      `Could not detect the '.elf' file in the build folder`,
+      "Could not detect the '.elf' file in the build folder",
       { sketchPath, fqbn }
-    );
+    )
   }
-  const { buildProperties } = boardDetails;
+  const { buildProperties } = board
   const decodeParams = await trbrCreateDecodeParams({
     elfPath,
     fqbn,
     buildProperties,
-  });
+  })
 
   return {
     ...decodeParams,
     fqbn,
     sketchPath,
-  };
+  }
 }
 
 export class DecodeParamsError extends Error {
@@ -75,16 +86,16 @@ export class DecodeParamsError extends Error {
     message: string,
     private readonly partial: Pick<DecodeParams, 'fqbn' | 'sketchPath'>
   ) {
-    super(message);
-    Object.setPrototypeOf(this, DecodeParamsError.prototype);
+    super(message)
+    Object.setPrototypeOf(this, DecodeParamsError.prototype)
   }
 
   get fqbn(): string {
-    return this.partial.fqbn.toString();
+    return this.partial.fqbn.toString()
   }
 
   get sketchPath(): string {
-    return this.partial.sketchPath;
+    return this.partial.sketchPath
   }
 }
 
@@ -96,13 +107,17 @@ async function findElfPath(
     ['ino', 'cpp'].map((ext) =>
       access(path.join(buildPath, `${sketchFolderName}.${ext}.elf`))
     )
-  );
-  return inoElfPath ?? cppElfPath ?? undefined;
+  )
+  return inoElfPath ?? cppElfPath ?? undefined
 }
 
-/**
- * (non-API)
- */
+function isBoardDetails(board: SketchFolder['board']): board is BoardDetails {
+  return (
+    typeof board === 'object' && board !== null && 'buildProperties' in board
+  )
+}
+
+/** (non-API) */
 export const __tests = {
   findElfPath,
-} as const;
+} as const

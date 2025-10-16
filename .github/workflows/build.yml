@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        node: [20.x]
+        node: [22.14.0]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -30,10 +30,6 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node }}
-      - name: Use Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
       - name: Install Dependencies
         run: npm ci
       - name: Check Format
@@ -55,18 +51,25 @@ jobs:
         with:
           persist-credentials: false
       - name: Use Node.js
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v3
         with:
-          node-version: 20.x
+          node-version: 22.14.0
       - name: Install Dependencies
         run: npm ci
       - name: Build
         run: npm run build
+      - name: Load secrets from 1Password
+        id: load_secrets
+        uses: 1password/load-secrets-action@v3
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          GH_TOKEN: op://cicd_dankeboy36/GITHUB_TOKEN/credential
+          OVSX_PAT: op://cicd_dankeboy36/OVSX_TOKEN/credential
       - name: Release
         id: release
         run: npm run release
         env:
-          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          GITHUB_TOKEN: ${{ steps.load_secrets.outputs.GITHUB_TOKEN }}
+          OVSX_PAT: ${{ steps.load_secrets.outputs.OVSX_PAT }}
     outputs:
       release_version: ${{ steps.release.outputs.release_version }}
