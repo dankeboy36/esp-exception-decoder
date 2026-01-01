@@ -3,7 +3,7 @@
   "displayName": "ESP Exception Decoder",
   "version": "1.1.1",
   "private": true,
-  "description": "ESP Exception Decoder helps you understand stack traces and backtraces from ESP8266/ESP32 boards",
+  "description": "ESP Exception Decoder helps you understand crash stack traces and backtraces from ESP8266 and ESP32 boards",
   "categories": [
     "Other"
   ],

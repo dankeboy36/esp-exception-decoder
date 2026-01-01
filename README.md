@@ -1,16 +1,16 @@
 # ESP Exception Decoder
 
-ESP Exception Decoder helps you understand stack traces and backtraces from ESP8266/ESP32 boards.
+ESP Exception Decoder helps you understand crash stack traces and backtraces from ESP8266 and ESP32 boards.
 
 ![ESP Exception Decoder](./resources/static/esp-exception-decoder-main.png)
 
 - **VS Code (recommended):** Runs as a Visual Studio Code extension and integrates with [BoardLab](https://github.com/dankeboy36/boardlab).
-- **Arduino IDE 2.2.x (deprecated):** Older versions (1.x) still work when manually installed as a VSIX.
+- **Arduino IDE 2.2.x (deprecated):** Older **1.x** versions still work when installed manually as a VSIX.
 
 > [!NOTE]
 > **Arduino IDE 2.2.x support is deprecated.**
 >
-> Starting with version **2.x**, ESP Exception Decoder targets **Visual Studio Code** and integrates with **BoardLab**.
+> Starting with version **2.x**, ESP Exception Decoder targets **Visual Studio Code** and requires **BoardLab**.
 >
 > Arduino IDE 2.2.x users must stay on the **1.x** release line and install the extension manually as a VSIX.
 
@@ -20,8 +20,8 @@ This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) i
 
 1. Compile the sketch.
 2. Upload the sketch to the ESP8266/ESP32 board.
-3. Open the monitor and watch for an exception.
-4. When an exception occurs, open the _ESP Exception Decoder Terminal_:
+3. Open the Monitor and wait for an exception.
+4. When an exception occurs, open the **ESP Exception Decoder terminal**:
    - Open the _Command Palette_ using <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
    - Run `ESP Exception Decoder: Show Decoder Terminal`.
 
@@ -41,7 +41,7 @@ Install from the Visual Studio Code Marketplace.
 > [!WARNING]
 > **Arduino IDE 2.2.x is deprecated for this project.**
 >
-> Version **2.x and newer will not run in Arduino IDE 2.2.x**. Installing them manually may cause startup failures.
+> Version **2.x and newer will not run in Arduino IDE 2.2.x** and may prevent the IDE from starting correctly.
 
 Arduino IDE does not install VS Code Marketplace extensions automatically. To use this decoder in Arduino IDE 2.2.x, you must manually install a **1.x** VSIX.
 
