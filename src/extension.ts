@@ -19,12 +19,8 @@ export function activate(context: vscode.ExtensionContext): void {
     })
 }
 
-const runsInCode = typeof process !== 'undefined' && process.env.VSCODE_PID
-
 async function findArduinoContext(): Promise<ArduinoContext | undefined> {
-  const extension = runsInCode
-    ? findExtensionApiForVSCode()
-    : findExtensionApiForArduinoIde2()
+  const extension = findExtensionApi()
   if (!extension) {
     return undefined
   }
@@ -40,11 +36,7 @@ async function findArduinoContext(): Promise<ArduinoContext | undefined> {
   return exports
 }
 
-function findExtensionApiForArduinoIde2(): vscode.Extension<any> | undefined {
-  return findExtensionOrLogError('dankeboy36.vscode-arduino-api')
-}
-
-function findExtensionApiForVSCode(): vscode.Extension<any> | undefined {
+function findExtensionApi(): vscode.Extension<any> | undefined {
   return findExtensionOrLogError('dankeboy36.boardlab')
 }
 

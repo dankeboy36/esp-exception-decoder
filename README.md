@@ -1,54 +1,88 @@
 # ESP Exception Decoder
 
-ESP Exception Decoder is an Arduino IDE 2.x extension that helps you understand stack traces and backtraces from ESP8266/ESP32 boards. It uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) internally. This project is inspired by the original Java-based [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder). The RISC-V decoder implementation originates from the [`esp_idf_monitor`](https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py).
+ESP Exception Decoder helps you understand stack traces and backtraces from ESP8266/ESP32 boards.
 
-![ESP8266/ESP32 Exception Decoder Extension](./images/espExceptionDecoder_main.png)
+![ESP Exception Decoder](./resources/static/esp-exception-decoder-main.png)
 
-> ⚠️ This extension is not related to the [Visual Studio Code extension for Arduino](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.vscode-arduino). Please note that this extension does not work in VS Code.
+- **VS Code (recommended):** Runs as a Visual Studio Code extension and integrates with [BoardLab](https://github.com/dankeboy36/boardlab).
+- **Arduino IDE 2.2.x (deprecated):** Older versions (1.x) still work when manually installed as a VSIX.
+
+> [!NOTE]
+> **Arduino IDE 2.2.x support is deprecated.**
+>
+> Starting with version **2.x**, ESP Exception Decoder targets **Visual Studio Code** and integrates with **BoardLab**.
+>
+> Arduino IDE 2.2.x users must stay on the **1.x** release line and install the extension manually as a VSIX.
+
+This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) internally. This project is inspired by the original Java-based [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder). The RISC-V decoder implementation originates from the [`esp_idf_monitor`](https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py).
 
 ## Requirements
+
+### VS Code (recommended)
+
+- Visual Studio Code
+- [BoardLab](https://marketplace.visualstudio.com/items?itemName=dankeboy36.boardlab)
+
+### Arduino IDE 2.2.x (deprecated, 1.x only)
 
 **Arduino IDE 2.2.0 or newer** is required. The extension relies on features introduced in [arduino/arduino-ide#2110](https://github.com/arduino/arduino-ide/issues/2110). Earlier versions (such as 2.1.1) are not supported and will result in errors like ["Sketch path is not set"](https://github.com/dankeboy36/esp-exception-decoder/issues/45).
 
 ## Installation
 
-1. Download the latest extension from the GitHub [release page](https://github.com/dankeboy36/esp-exception-decoder/releases/latest). The filename should be `esp-exception-decoder-${VERSION}.vsix`, where `${VERSION}` is the latest version.
+### VS Code (recommended)
+
+Install from the Visual Studio Code Marketplace.
+
+- ESP Exception Decoder: https://marketplace.visualstudio.com/items?itemName=dankeboy36.esp-exception-decoder
+
+### Arduino IDE 2.2.x (deprecated, 1.x only)
+
+Arduino IDE does not install VS Code Marketplace extensions automatically. To use this decoder in Arduino IDE 2.2.x, you must manually install a **1.x** VSIX.
+
+1. Download the latest compatible **1.x** extension from the GitHub [release page](https://github.com/dankeboy36/esp-exception-decoder/releases/tag/1.1.1). The filename should be `esp-exception-decoder-${VERSION}.vsix`, where `${VERSION}` is the latest version.
 2. Make sure the Arduino IDE is not running. Then, copy the downloaded extension into the `plugins` folder located in the Arduino IDE's configuration directory. If the `plugins` folder does not exist, create it.
    - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
    - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
      > **ⓘ** If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
 
-### Update
+#### Update (Arduino IDE 2.2.x, 1.x only)
 
-To update to the latest or a more recent version of the decoder extension, simply copy the new version file into the same `plugins` folder alongside the current version. The Arduino IDE will automatically use the most recent version of the extension. If desired, you can delete the older version to keep your plugins folder organized.
+To update, copy the new **1.x** VSIX into the same `plugins` folder alongside the current version. The Arduino IDE will automatically use the most recent version of the extension. If desired, you can delete older versions to keep your plugins folder organized.
+
+> [!NOTE]
+> In principle, no new releases are planned for Arduino IDE 2.2.x. However, critical bug fixes may still be backported to the **1.x** line if necessary.
 
 ## Usage
 
-1. Open a sketch in the Arduino IDE and verify it.
+1. Open a sketch and verify it.
 2. Upload the sketch to your ESP8266/ESP32 board.
-3. Open the _Serial Monitor_ view to monitor the output for exceptions.
+3. Open the _Serial Monitor_ to watch for exceptions.
 4. When an exception occurs, open the _Exception Decoder_ terminal:
+   - In VS Code, the decoder opens in the integrated terminal. In Arduino IDE 2.2.x it opens in the Theia terminal.
    - Open the _Command Palette_ using <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
    - Type `ESP Exception Decoder: Show Decoder Terminal` and press <kbd>Enter</kbd>.
 5. Copy the exception stack trace/backtrace from the _Serial Monitor_ view.
 6. Paste the stack trace/backtrace into the _Exception Decoder_ terminal.
    > **ⓘ** For more details on copying and pasting in the terminal, check [here](https://code.visualstudio.com/docs/terminal/basics#_copy-paste).
 
-![ESP Exception Decoder in Action](./images/espExceptionDecoder_main.gif)
+![ESP Exception Decoder in Action - Arduino IDE 2.2.x](./resources/static/arduino-ide-in-action.gif)
 
-### Hints
+## Arduino IDE 2.2.x deprecation notes
 
-- Enable blinking cursors in the decoder terminal by setting [`"terminal.integrated.cursorBlinking": true`](https://code.visualstudio.com/docs/terminal/appearance#_terminal-cursor).
-- Allow pasting in the decoder terminal by setting `"terminal.enablePaste": true`.
-- Adjust the terminal font size with the setting [`"terminal.integrated.fontSize": 12`](https://code.visualstudio.com/docs/terminal/appearance#_text-style).
+> [!WARNING]
+> **Arduino IDE 2.2.x is deprecated for this project.**
+>
+> Version **2.x and newer will not run in Arduino IDE 2.2.x**. Installing them manually may cause startup failures.
 
-  > **ⓘ** Refer to the [_Advanced settings_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#advanced-settings) documentation of the Arduino IDE for more details.
+Starting with version **2.x**, this project targets **VS Code + BoardLab**.
 
-  > ⚠️ Customizing terminal colors with the [`workbench.colorCustomizations`](https://code.visualstudio.com/docs/terminal/appearance#_terminal-colors) setting is currently unsupported in Eclipse Theia ([eclipse-theia/theia#8060](https://github.com/eclipse-theia/theia/issues/8060)). Therefore, this feature is missing from the Arduino IDE.
+Arduino IDE 2.2.x uses Eclipse Theia and loads VSIX plugins differently than VS Code. The VS Code version depends on BoardLab, which is intentionally **not loaded** in Arduino IDE.
 
-  > ⚠️ Arduino IDE must support path links that contain spaces in the decoder terminal. ([eclipse-theia/theia#12643](https://github.com/eclipse-theia/theia/issues/12643))
+### What should Arduino IDE users do?
 
-  > ⚠️ [`terminal.integrated.rightClickBehavior`](https://code.visualstudio.com/docs/terminal/basics#_rightclick-behavior) is not supported in the Arduino IDE. ([eclipse-theia/theia#12644](https://github.com/eclipse-theia/theia/issues/12644))
+- Stay on the latest **1.x** release.
+- Install it manually via the `plugins` folder (see the deprecated installation section above).
+- Do **not** install 2.x VSIX files into Arduino IDE.
 
 ## Development
 
@@ -57,8 +91,6 @@ To update to the latest or a more recent version of the decoder extension, simpl
    ```sh
    npm i
    ```
-
-   > ⚠️ You need Node.js version `>=16.14.0`.
 
 2. Build the extension:
 
