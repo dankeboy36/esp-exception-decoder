@@ -45,27 +45,22 @@ Arduino IDE does not install VS Code Marketplace extensions automatically. To us
    - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
      > **ⓘ** If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
 
-#### Update (Arduino IDE 2.2.x, 1.x only)
+For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the original documentation for the last compatible release:
 
-To update, copy the new **1.x** VSIX into the same `plugins` folder alongside the current version. The Arduino IDE will automatically use the most recent version of the extension. If desired, you can delete older versions to keep your plugins folder organized.
-
-> [!NOTE]
-> In principle, no new releases are planned for Arduino IDE 2.2.x. However, critical bug fixes may still be backported to the **1.x** line if necessary.
+- Usage guide (1.x): https://github.com/dankeboy36/esp-exception-decoder/tree/1.1.1?tab=readme-ov-file#usage
+- Update guide (1.x): https://github.com/dankeboy36/esp-exception-decoder/tree/1.1.1?tab=readme-ov-file#update
 
 ## Usage
 
-1. Open a sketch and verify it.
-2. Upload the sketch to your ESP8266/ESP32 board.
-3. Open the _Serial Monitor_ to watch for exceptions.
-4. When an exception occurs, open the _Exception Decoder_ terminal:
-   - In VS Code, the decoder opens in the integrated terminal. In Arduino IDE 2.2.x it opens in the Theia terminal.
+1. Compile the sketch.
+2. Upload the sketch to the ESP8266/ESP32 board.
+3. Open the monitor and watch for an exception.
+4. When an exception occurs, open the _ESP Exception Decoder Terminal_:
    - Open the _Command Palette_ using <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
-   - Type `ESP Exception Decoder: Show Decoder Terminal` and press <kbd>Enter</kbd>.
-5. Copy the exception stack trace/backtrace from the _Serial Monitor_ view.
-6. Paste the stack trace/backtrace into the _Exception Decoder_ terminal.
-   > **ⓘ** For more details on copying and pasting in the terminal, check [here](https://code.visualstudio.com/docs/terminal/basics#_copy-paste).
+   - Run `ESP Exception Decoder: Show Decoder Terminal`.
 
-![ESP Exception Decoder in Action - Arduino IDE 2.2.x](./resources/static/arduino-ide-in-action.gif)
+5. Paste the exception stack trace or backtrace into the decoder terminal.
+   > **ⓘ** For more details on copying and pasting in the terminal, see the VS Code documentation: https://code.visualstudio.com/docs/terminal/basics#copy-paste
 
 ## Arduino IDE 2.2.x deprecation notes
 
