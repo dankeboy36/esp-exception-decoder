@@ -27,6 +27,18 @@ This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) i
 
 **Arduino IDE 2.2.0 or newer** is required. The extension relies on features introduced in [arduino/arduino-ide#2110](https://github.com/arduino/arduino-ide/issues/2110). Earlier versions (such as 2.1.1) are not supported and will result in errors like ["Sketch path is not set"](https://github.com/dankeboy36/esp-exception-decoder/issues/45).
 
+## Usage
+
+1. Compile the sketch.
+2. Upload the sketch to the ESP8266/ESP32 board.
+3. Open the monitor and watch for an exception.
+4. When an exception occurs, open the _ESP Exception Decoder Terminal_:
+   - Open the _Command Palette_ using <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
+   - Run `ESP Exception Decoder: Show Decoder Terminal`.
+
+5. Paste the exception stack trace or backtrace into the decoder terminal.
+   > **ⓘ** For more details on copying and pasting in the terminal, see the VS Code documentation: https://code.visualstudio.com/docs/terminal/basics#copy-paste
+
 ## Installation
 
 ### VS Code (recommended)
@@ -39,7 +51,7 @@ Install from the Visual Studio Code Marketplace.
 
 Arduino IDE does not install VS Code Marketplace extensions automatically. To use this decoder in Arduino IDE 2.2.x, you must manually install a **1.x** VSIX.
 
-1. Download the latest compatible **1.x** extension from the GitHub [release page](https://github.com/dankeboy36/esp-exception-decoder/releases/tag/1.1.1). The filename should be `esp-exception-decoder-${VERSION}.vsix`, where `${VERSION}` is the latest version.
+1. Download the latest compatible **1.x** extension from the GitHub [release page](https://github.com/dankeboy36/esp-exception-decoder/releases/tag/1.1.1). The filename should be `esp-exception-decoder-${VERSION}.vsix`, where `${VERSION}` is the latest compatible 1.x version.
 2. Make sure the Arduino IDE is not running. Then, copy the downloaded extension into the `plugins` folder located in the Arduino IDE's configuration directory. If the `plugins` folder does not exist, create it.
    - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
    - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
@@ -49,18 +61,6 @@ For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the orig
 
 - Usage guide (1.x): https://github.com/dankeboy36/esp-exception-decoder/tree/1.1.1?tab=readme-ov-file#usage
 - Update guide (1.x): https://github.com/dankeboy36/esp-exception-decoder/tree/1.1.1?tab=readme-ov-file#update
-
-## Usage
-
-1. Compile the sketch.
-2. Upload the sketch to the ESP8266/ESP32 board.
-3. Open the monitor and watch for an exception.
-4. When an exception occurs, open the _ESP Exception Decoder Terminal_:
-   - Open the _Command Palette_ using <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
-   - Run `ESP Exception Decoder: Show Decoder Terminal`.
-
-5. Paste the exception stack trace or backtrace into the decoder terminal.
-   > **ⓘ** For more details on copying and pasting in the terminal, see the VS Code documentation: https://code.visualstudio.com/docs/terminal/basics#copy-paste
 
 ## Arduino IDE 2.2.x deprecation notes
 
@@ -100,12 +100,6 @@ Arduino IDE 2.2.x uses Eclipse Theia and loads VSIX plugins differently than VS 
    ```sh
    npm run test
    ```
-
-## Hints
-
-- If you are using VS Code for development, you can take advantage of predefined _Launch Configurations_ to debug the extensions and tests. For guidance on how to [test VS Code extensions](https://code.visualstudio.com/api/working-with-extensions/testing-extension), see the documentation.
-- This extension utilizes the [`vscode-arduino-api`](https://github.com/dankeboy36/vscode-arduino-api/) to communicate with the Arduino IDE.
-- The extension was created from the [`helloworld`](https://code.visualstudio.com/api/get-started/your-first-extension) VS Code extension template.
 
 ## Acknowledgments
 
