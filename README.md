@@ -16,17 +16,6 @@ ESP Exception Decoder helps you understand stack traces and backtraces from ESP8
 
 This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) internally. This project is inspired by the original Java-based [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder). The RISC-V decoder implementation originates from the [`esp_idf_monitor`](https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py).
 
-## Requirements
-
-### VS Code (recommended)
-
-- Visual Studio Code
-- [BoardLab](https://marketplace.visualstudio.com/items?itemName=dankeboy36.boardlab)
-
-### Arduino IDE 2.2.x (deprecated, 1.x only)
-
-**Arduino IDE 2.2.0 or newer** is required. The extension relies on features introduced in [arduino/arduino-ide#2110](https://github.com/arduino/arduino-ide/issues/2110). Earlier versions (such as 2.1.1) are not supported and will result in errors like ["Sketch path is not set"](https://github.com/dankeboy36/esp-exception-decoder/issues/45).
-
 ## Usage
 
 1. Compile the sketch.
@@ -41,13 +30,18 @@ This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) i
 
 ## Installation
 
-### VS Code (recommended)
+### VS Code
 
 Install from the Visual Studio Code Marketplace.
 
 - ESP Exception Decoder: https://marketplace.visualstudio.com/items?itemName=dankeboy36.esp-exception-decoder
 
 ### Arduino IDE 2.2.x (deprecated, 1.x only)
+
+> [!WARNING]
+> **Arduino IDE 2.2.x is deprecated for this project.**
+>
+> Version **2.x and newer will not run in Arduino IDE 2.2.x**. Installing them manually may cause startup failures.
 
 Arduino IDE does not install VS Code Marketplace extensions automatically. To use this decoder in Arduino IDE 2.2.x, you must manually install a **1.x** VSIX.
 
@@ -61,23 +55,6 @@ For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the orig
 
 - Usage guide (1.x): https://github.com/dankeboy36/esp-exception-decoder/tree/1.1.1?tab=readme-ov-file#usage
 - Update guide (1.x): https://github.com/dankeboy36/esp-exception-decoder/tree/1.1.1?tab=readme-ov-file#update
-
-## Arduino IDE 2.2.x deprecation notes
-
-> [!WARNING]
-> **Arduino IDE 2.2.x is deprecated for this project.**
->
-> Version **2.x and newer will not run in Arduino IDE 2.2.x**. Installing them manually may cause startup failures.
-
-Starting with version **2.x**, this project targets **VS Code + BoardLab**.
-
-Arduino IDE 2.2.x uses Eclipse Theia and loads VSIX plugins differently than VS Code. The VS Code version depends on BoardLab, which is intentionally **not loaded** in Arduino IDE.
-
-### What should Arduino IDE users do?
-
-- Stay on the latest **1.x** release.
-- Install it manually via the `plugins` folder (see the deprecated installation section above).
-- Do **not** install 2.x VSIX files into Arduino IDE.
 
 ## Development
 
