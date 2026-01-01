@@ -144,7 +144,7 @@ jobs:
         uses: 1password/load-secrets-action@v3
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          GH_TOKEN: op://cicd_dankeboy36/GITHUB_TOKEN/credential
+          GITHUB_TOKEN: op://cicd_dankeboy36/GITHUB_TOKEN/credential
           VSCE_PAT: op://cicd_dankeboy36/VSCE_TOKEN/credential
 
       - name: Release
