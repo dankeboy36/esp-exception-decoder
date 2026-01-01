@@ -1,3 +1,16 @@
+# [2.0.0](https://github.com/dankeboy36/esp-exception-decoder/compare/1.1.1...2.0.0) (2026-01-01)
+
+
+* feat!: deprecate Arduino IDE 2.x, require BoardLab ([#50](https://github.com/dankeboy36/esp-exception-decoder/issues/50)) ([3e21fdc](https://github.com/dankeboy36/esp-exception-decoder/commit/3e21fdc8b4fe286e915900735c04b3cc0f535724))
+
+
+### BREAKING CHANGES
+
+* Version 2.x no longer runs in Arduino IDE 2.x.
+Arduino IDE users must stay on the 1.x releases.
+
+Signed-off-by: dankeboy36 <dankeboy36@gmail.com>
+
 ## [1.1.1](https://github.com/dankeboy36/esp-exception-decoder/compare/1.1.0...1.1.1) (2025-07-10)
 
 
