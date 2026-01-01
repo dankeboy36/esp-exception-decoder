@@ -12,61 +12,146 @@ on:
     branches:
       - main
 
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: test (${{ matrix.os }}, node-${{ matrix.node }})
+  determine-version:
+    name: Determine Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      short_sha: ${{ steps.get_sha.outputs.short_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Get Next Version
+        id: get_version
+        run: |
+          set -euo pipefail
+          OUTPUT="$(npx semantic-release --dry-run --no-ci 2>/dev/null || true)"
+          VERSION="$(echo "$OUTPUT" | awk '/next release version is/ {print $5}' | tail -n1)"
+          if [ -z "$VERSION" ]; then
+            VERSION="$(node -p "require('./package.json').version")"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Get Short SHA
+        id: get_sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test (${{ matrix.os }}, node-${{ matrix.node }})
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-        node: [20.x]
+        os: [windows-latest, ubuntu-latest, macos-latest, macos-15-intel]
+        node: [22.14.0]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: Use Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+
       - name: Install Dependencies
         run: npm ci
+
       - name: Check Format
         run: npm run format && git diff --exit-code
+
+      - name: Lint
+        run: npm run lint
+
       - name: Test
-        uses: coactions/setup-xvfb@v1
-        with:
-          run: npm test
+        run: ${{ matrix.os == 'ubuntu-latest' && 'xvfb-run' || '' }} npm test
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  release:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+  package:
+    name: Package VSIX
+    if: ${{ github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [test, determine-version]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - name: Use Node.js
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.14.0
+
       - name: Install Dependencies
         run: npm ci
-      - name: Build
-        run: npm run build
+
+      - name: Set Version
+        run: npm pkg set version="${{ needs.determine-version.outputs.version }}-preview-${{ needs.determine-version.outputs.short_sha }}"
+
+      - name: Package
+        run: npm run package
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: esp-exception-decoder-${{ needs.determine-version.outputs.version }}-preview-${{ needs.determine-version.outputs.short_sha }}
+          path: '*.vsix'
+
+  release:
+    name: Release
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Package
+        run: npm run package
+
+      - name: Load secrets from 1Password
+        id: load_secrets
+        uses: 1password/load-secrets-action@v3
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          GH_TOKEN: op://cicd_dankeboy36/GITHUB_TOKEN/credential
+          VSCE_PAT: op://cicd_dankeboy36/VSCE_TOKEN/credential
+
       - name: Release
         id: release
         run: npm run release
         env:
-          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN }}
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          GITHUB_TOKEN: ${{ steps.load_secrets.outputs.GITHUB_TOKEN }}
+          VSCE_PAT: ${{ steps.load_secrets.outputs.VSCE_PAT }}
     outputs:
       release_version: ${{ steps.release.outputs.release_version }}

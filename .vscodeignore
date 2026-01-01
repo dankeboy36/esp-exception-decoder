@@ -11,9 +11,10 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
-.prettier*
+prettier.config.*
+.prettierignore
+eslint.config.*
 .github/**
-images/**
 release.config.js
 CHANGELOG.md
 .nyc_output

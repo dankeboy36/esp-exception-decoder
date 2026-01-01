@@ -1,5 +1,7 @@
-//@ts-check
-'use strict';
+// @ts-check
+'use strict'
+
+/* eslint-disable no-template-curly-in-string */
 
 /** @type {import('semantic-release').Options} */
 module.exports = {
@@ -9,7 +11,6 @@ module.exports = {
     '@semantic-release/commit-analyzer',
     '@semantic-release/release-notes-generator',
     '@semantic-release/changelog',
-    '@semantic-release/npm',
     [
       '@semantic-release/github',
       {
@@ -24,7 +25,7 @@ module.exports = {
     [
       'semantic-release-vsce',
       {
-        packageVsix: true,
+        packageVsix: false,
         publish: true,
       },
     ],
@@ -36,4 +37,4 @@ module.exports = {
       },
     ],
   ],
-};
+}
