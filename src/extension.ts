@@ -45,10 +45,7 @@ function findExtensionApiForArduinoIde2(): vscode.Extension<any> | undefined {
 }
 
 function findExtensionApiForVSCode(): vscode.Extension<any> | undefined {
-  return (
-    findExtensionOrLogError('dankeboy36.vscode-ardunno') ??
-    findExtensionOrLogError('undefined_publisher.vscode-ardunno')
-  )
+  return findExtensionOrLogError('dankeboy36.boardlab')
 }
 
 function findExtensionOrLogError(

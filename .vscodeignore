@@ -15,7 +15,6 @@ prettier.config.*
 .prettierignore
 eslint.config.*
 .github/**
-images/**
 release.config.js
 CHANGELOG.md
 .nyc_output

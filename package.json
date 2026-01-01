@@ -8,10 +8,17 @@
     "Other"
   ],
   "keywords": [
-    "arduino-ide",
-    "vscode-extension",
-    "esp8266-arduino",
-    "esp32-arduino"
+    "arduino",
+    "arduino-cli",
+    "boardlab",
+    "vscode",
+    "embedded-debugging",
+    "esp32",
+    "esp8266",
+    "exception-decoder",
+    "stacktrace",
+    "coredump",
+    "microcontroller"
   ],
   "bugs": {
     "url": "https://github.com/dankeboy36/esp-exception-decoder/issues"
@@ -35,7 +42,7 @@
     "prepackage": "npm run build",
     "package": "vsce package",
     "release": "semantic-release",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "pretest": "npm run compile-tests && npm run compile",
     "test": "node ./out/test/runTest.js",
     "watch": "webpack --watch",
     "watch-tests": "tsc -p . -w --outDir out"
@@ -64,7 +71,6 @@
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^12.0.0",
-    "@semantic-release/npm": "^13.0.0",
     "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/debug": "^4.1.12",
     "@types/glob": "^9.0.0",
@@ -98,6 +104,9 @@
     "webpack": "^5.81.0",
     "webpack-cli": "^5.0.2"
   },
+  "extensionDependencies": [
+    "dankeboy36.boardlab"
+  ],
   "engines": {
     "vscode": "^1.78.0"
   }

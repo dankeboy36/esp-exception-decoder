@@ -11,7 +11,6 @@ module.exports = {
     '@semantic-release/commit-analyzer',
     '@semantic-release/release-notes-generator',
     '@semantic-release/changelog',
-    '@semantic-release/npm',
     [
       '@semantic-release/github',
       {
@@ -26,7 +25,7 @@ module.exports = {
     [
       'semantic-release-vsce',
       {
-        packageVsix: true,
+        packageVsix: false,
         publish: true,
       },
     ],
