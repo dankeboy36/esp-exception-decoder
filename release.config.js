@@ -1,16 +1,22 @@
 // @ts-check
 'use strict'
 
-/* eslint-disable no-template-curly-in-string */
-
 /** @type {import('semantic-release').Options} */
 module.exports = {
+  // eslint-disable-next-line no-template-curly-in-string
   tagFormat: '${version}',
   branches: ['main'],
   plugins: [
     '@semantic-release/commit-analyzer',
     '@semantic-release/release-notes-generator',
     '@semantic-release/changelog',
+    [
+      '@semantic-release/npm',
+      {
+        npmPublish: false,
+        tarballDir: 'dist/npm',
+      },
+    ],
     [
       '@semantic-release/github',
       {
@@ -33,6 +39,7 @@ module.exports = {
       '@semantic-release/exec',
       {
         publishCmd:
+          // eslint-disable-next-line no-template-curly-in-string
           'echo "release_version=${nextRelease.version}" >> $GITHUB_OUTPUT',
       },
     ],

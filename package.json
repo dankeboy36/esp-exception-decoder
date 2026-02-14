@@ -301,6 +301,7 @@
     "prettier-plugin-packagejson": "^2.5.18",
     "rimraf": "^6.0.1",
     "semantic-release": "^25.0.0",
+    "semantic-release-next-version": "^0.1.2",
     "semantic-release-vsce": "^6.0.12",
     "temp": "^0.9.4",
     "ts-loader": "^9.5.4",
