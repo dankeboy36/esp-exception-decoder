@@ -2,6 +2,19 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "build:webpack",
+      "type": "npm",
+      "script": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "build:webpack:debug",
+      "type": "npm",
+      "script": "build:debug",
+      "problemMatcher": []
+    },
+    {
+      "label": "watch:webpack",
       "type": "npm",
       "script": "watch",
       "problemMatcher": "$ts-webpack-watch",
@@ -28,7 +41,7 @@
     },
     {
       "label": "tasks: watch-tests",
-      "dependsOn": ["npm: watch", "npm: watch-tests"],
+      "dependsOn": ["watch:webpack", "npm: watch-tests"],
       "problemMatcher": []
     },
     {

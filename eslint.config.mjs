@@ -21,6 +21,7 @@ export default [
       '@stylistic/comma-dangle': 'off',
       '@stylistic/indent': 'off',
       '@stylistic/no-tabs': 'off',
+      '@stylistic/brace-style': 'off',
       '@stylistic/space-before-function-paren': [
         'error',
         {

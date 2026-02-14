@@ -1,4 +1,3 @@
-/* eslint-disable import/newline-after-import */
 // Enable `debug` coloring in VS Code _Debug Console_
 // https://github.com/debug-js/debug/issues/641#issuecomment-490706752
 import path from 'node:path'
@@ -6,19 +5,9 @@ import path from 'node:path'
 import debug from 'debug'
 import { glob } from 'glob'
 import Mocha, { MochaOptions } from 'mocha'
-;(process as any).browser = true
-;(global as any).window = { process: { type: 'renderer' } }
-
-const tty = require('node:tty')
 
 const NYC = require('nyc')
 const baseConfig = require('@istanbuljs/nyc-config-typescript')
-
-if (!tty.getWindowSize) {
-  tty.getWindowSize = (): number[] => {
-    return [80, 75]
-  }
-}
 
 export async function run(): Promise<void> {
   // nyc setup

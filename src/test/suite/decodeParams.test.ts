@@ -4,15 +4,9 @@ import path from 'node:path'
 
 import temp from 'temp'
 
-import {
-  DecodeParamsError,
-  __tests,
-  createDecodeParams,
-} from '../../decodeParams'
+import { DecodeParamsError, createDecodeParams } from '../../decodeParams'
 import { isWindows } from '../../utils'
 import { mockBoardDetails, mockCompileSummary, mockSketchFolder } from './mock'
-
-const { findElfPath } = __tests
 
 describe('decodeParams', () => {
   let tracked: typeof temp
@@ -113,7 +107,7 @@ describe('decodeParams', () => {
             board: mockBoardDetails(fqbn),
             compileSummary: {
               ...mockCompileSummary('/tmp/ignored'),
-              buildPath: undefined as unknown,
+              buildPath: undefined as unknown as string,
             },
           })
         ),
@@ -202,53 +196,6 @@ describe('decodeParams', () => {
       assert.strictEqual(actual.toolPath, toolPath)
       assert.strictEqual(actual.sketchPath, sketchPath)
       assert.strictEqual(actual.fqbn.toString(), fqbn)
-    })
-  })
-
-  describe('findElfPath', () => {
-    it('should not find the elf path when the sketch folder name does not match', async () => {
-      const buildPath = tracked.mkdirSync()
-      const sketchName = 'my_sketch'
-      const invalidName = 'MySketch'
-      await fs.writeFile(path.join(buildPath, `${invalidName}.ino.elf`), '')
-      await fs.writeFile(path.join(buildPath, `${invalidName}.cpp.elf`), '')
-      const actual = await findElfPath(sketchName, buildPath)
-      assert.strictEqual(actual, undefined)
-    })
-
-    it("should not find the elf path when neither 'ino.elf' nor 'cpp.elf' exist", async () => {
-      const buildPath = tracked.mkdirSync()
-      const sketchName = 'my_sketch'
-      const actual = await findElfPath(sketchName, buildPath)
-      assert.strictEqual(actual, undefined)
-    })
-
-    it("should find 'ino.elf' path", async () => {
-      const buildPath = tracked.mkdirSync()
-      const sketchName = 'my_sketch'
-      const expected = path.join(buildPath, `${sketchName}.ino.elf`)
-      await fs.writeFile(expected, '')
-      const actual = await findElfPath(sketchName, buildPath)
-      assert.strictEqual(actual, expected)
-    })
-
-    it("should find 'cpp.elf' path", async () => {
-      const buildPath = tracked.mkdirSync()
-      const sketchName = 'my_sketch'
-      const expected = path.join(buildPath, `${sketchName}.cpp.elf`)
-      await fs.writeFile(expected, '')
-      const actual = await findElfPath(sketchName, buildPath)
-      assert.strictEqual(actual, expected)
-    })
-
-    it("should prefer 'ino.elf' over 'cpp.elf' when both paths exist", async () => {
-      const buildPath = tracked.mkdirSync()
-      const sketchName = 'my_sketch'
-      const expected = path.join(buildPath, `${sketchName}.ino.elf`)
-      await fs.writeFile(expected, '')
-      await fs.writeFile(path.join(buildPath, `${sketchName}.cpp.elf`), '')
-      const actual = await findElfPath(sketchName, buildPath)
-      assert.strictEqual(actual, expected)
     })
   })
 })

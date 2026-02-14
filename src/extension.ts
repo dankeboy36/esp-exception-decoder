@@ -1,22 +1,67 @@
 import vscode from 'vscode'
 import type { ArduinoContext } from 'vscode-arduino-api'
 
+import { registerCapturer } from './capturer'
+import { ReplayStore } from './replay'
+import { registerReplay, replayCrashCommandId } from './replayRegistration'
 import { activateDecoderTerminal } from './terminal'
 
-export function activate(context: vscode.ExtensionContext): void {
-  findArduinoContext()
-    .then((arduinoContext) => {
-      if (arduinoContext) {
-        activateDecoderTerminal(context, arduinoContext)
-      }
-    })
-    .catch((err) => {
-      vscode.window.showErrorMessage(
-        `Failed to activate extension: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      )
-    })
+export async function activate(
+  context: vscode.ExtensionContext
+): Promise<void> {
+  const replayStore = new ReplayStore()
+  context.subscriptions.push(replayStore)
+  registerReplay(context, replayStore)
+
+  await activateWithBoardLab(context, replayStore)
+}
+
+async function activateWithBoardLab(
+  context: vscode.ExtensionContext,
+  replayStore: ReplayStore
+): Promise<void> {
+  try {
+    const arduinoContext = await findArduinoContext()
+    if (!arduinoContext) {
+      return
+    }
+    activateDecoderTerminal(context, arduinoContext, replayStore)
+    context.subscriptions.push(
+      registerCapturer(context, arduinoContext, {
+        onDecodedEvent: async ({ meta, params, result }) => {
+          replayStore.recordDecode(params, result, {
+            sourceKey: meta.key,
+            reason: meta.label,
+            createdAt: meta.createdAt,
+            captureSessionLabel: meta.captureSessionLabel,
+          })
+        },
+        onRemovedDecodedEvent: ({ key }) => {
+          replayStore.deleteSnapshotBySourceKey(key)
+        },
+        onRemovedCapturer: ({ configId }) => {
+          replayStore.deleteSnapshotsBySourceKeyPrefix(`${configId}:`)
+        },
+        evaluateDecodedEvent: async ({ meta, params, result }) => {
+          const snapshot = replayStore.recordDecode(params, result, {
+            sourceKey: meta.key,
+            reason: meta.label,
+            createdAt: meta.createdAt,
+            captureSessionLabel: meta.captureSessionLabel,
+          })
+          await vscode.commands.executeCommand(replayCrashCommandId, {
+            snapshotId: snapshot.id,
+          })
+        },
+      })
+    )
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      `Failed to activate extension: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    )
+  }
 }
 
 async function findArduinoContext(): Promise<ArduinoContext | undefined> {

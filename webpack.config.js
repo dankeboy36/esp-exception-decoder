@@ -13,6 +13,13 @@ const extensionConfig = {
     path: path.resolve(__dirname, 'dist'),
     filename: 'extension.js',
     libraryTarget: 'commonjs2',
+    devtoolModuleFilenameTemplate: (info) => {
+      const normalizedPath = info.absoluteResourcePath.replace(/\\/g, '/')
+      return normalizedPath.startsWith('/')
+        ? `file://${normalizedPath}`
+        : `file:///${normalizedPath}`
+    },
+    devtoolFallbackModuleFilenameTemplate: 'file:///[absolute-resource-path]',
   },
   externals: {
     vscode: 'commonjs vscode',
