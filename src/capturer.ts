@@ -133,6 +133,30 @@ interface CapturerTestExports {
     event: CapturerEvent,
     runtime?: CapturerRuntime
   ) => CapturerEventSummary
+  shouldIgnoreCapturerEvent: (event: CapturerEvent) => boolean
+  resolveElfIdentity: (
+    elfPath: string,
+    previous?:
+      | {
+          path: string
+          size: number
+          mtimeMs: number
+          sha256: string
+          sha256Short: string
+          sessionId: string
+        }
+      | undefined
+  ) => Promise<
+    | {
+        path: string
+        size: number
+        mtimeMs: number
+        sha256: string
+        sha256Short: string
+        sessionId: string
+      }
+    | undefined
+  >
   upsertEventSummary: (
     cache: Map<string, CapturerEventSummary>,
     event: CapturerEvent,
@@ -202,4 +226,4 @@ interface CapturerTestExports {
 export const CapturerManager =
   CapturerManagerImpl as unknown as CapturerManagerCtor
 export const registerCapturer = registerCapturerImpl as RegisterCapturer
-export const __tests = __testsImpl as CapturerTestExports
+export const __tests = __testsImpl as unknown as CapturerTestExports

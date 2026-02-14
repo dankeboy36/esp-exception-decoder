@@ -11,7 +11,12 @@ import type {
   MonitorRuntimeState,
   MonitorSuspensionResult,
 } from '../../boardLabExt'
-import { type CapturerRootNode, CapturerManager, __tests } from '../../capturer'
+import {
+  type CapturerNode,
+  type CapturerRootNode,
+  CapturerManager,
+  __tests,
+} from '../../capturer'
 import {
   mockArduinoContext,
   mockBoardDetails,
@@ -78,6 +83,25 @@ class FakeMonitorClient implements MonitorClient {
     this.disposed = true
     this.receiveEmitter.dispose()
     this.stateEmitter.dispose()
+  }
+}
+
+class FakeTreeView<T> {
+  badge: vscode.ViewBadge | undefined
+
+  async reveal(
+    _element: T,
+    _options?: {
+      select?: boolean
+      focus?: boolean
+      expand?: boolean | number
+    }
+  ): Promise<void> {
+    // noop
+  }
+
+  dispose(): void {
+    // noop
   }
 }
 
@@ -246,6 +270,81 @@ describe('capturer', () => {
       __tests.isPathInside('/tmp/sketch', '/tmp/sketch/a'),
       true
     )
+  })
+
+  it('ignores single-line crash fragments without decode anchors', () => {
+    const truncatedEvent: CapturerEvent = {
+      id: 'event-fragment',
+      signature:
+        "xtensa|guru meditation error: core 1 panic'ed (storeprohibited). exception|fc:na|nopc",
+      kind: 'xtensa',
+      lines: [
+        "Guru Meditation Error: Core  1 panic'ed (StoreProhibited). Exception",
+      ],
+      rawText:
+        "Guru Meditation Error: Core  1 panic'ed (StoreProhibited). Exception",
+      firstSeenAt: 10,
+      lastSeenAt: 10,
+      count: 1,
+      lightweight: {
+        reasonLine:
+          "Guru Meditation Error: Core  1 panic'ed (StoreProhibited). Exception",
+        programCounter: undefined,
+        faultCode: undefined,
+        faultAddr: undefined,
+        regs: {},
+        backtraceAddrs: [],
+      },
+      fastFrames: undefined,
+      evaluated: undefined,
+    }
+
+    assert.strictEqual(__tests.shouldIgnoreCapturerEvent(truncatedEvent), true)
+
+    const completeEnoughEvent: CapturerEvent = {
+      ...truncatedEvent,
+      id: 'event-complete',
+      signature: 'sig-complete',
+      lightweight: {
+        ...truncatedEvent.lightweight,
+        programCounter: 0x400d1234,
+      },
+    }
+    assert.strictEqual(
+      __tests.shouldIgnoreCapturerEvent(completeEnoughEvent),
+      false
+    )
+
+    const multiLineEvent: CapturerEvent = {
+      ...truncatedEvent,
+      id: 'event-multi',
+      signature: 'sig-multi',
+      lines: [
+        "Guru Meditation Error: Core  1 panic'ed (StoreProhibited). Exception",
+        'Core 1 register dump:',
+      ],
+      rawText:
+        "Guru Meditation Error: Core  1 panic'ed (StoreProhibited). Exception\nCore 1 register dump:",
+    }
+    assert.strictEqual(__tests.shouldIgnoreCapturerEvent(multiLineEvent), false)
+  })
+
+  it('resolves ELF identity with stable short hash prefix', async () => {
+    const buildPath = await fs.mkdtemp('/tmp/capturer-elf-identity-')
+    const elfPath = path.join(buildPath, 'sample.elf')
+    try {
+      await fs.writeFile(elfPath, 'elf-content')
+      const identity = await __tests.resolveElfIdentity(elfPath)
+      assert.ok(identity)
+      assert.strictEqual(identity.sha256Short, identity.sha256.slice(0, 8))
+      assert.strictEqual(identity.sha256Short.length, 8)
+      assert.ok(identity.sessionId.startsWith(`${identity.sha256Short}-`))
+
+      const reused = await __tests.resolveElfIdentity(elfPath, identity)
+      assert.strictEqual(reused, identity)
+    } finally {
+      await fs.rm(buildPath, { recursive: true, force: true })
+    }
   })
 
   it('deduplicates summaries by event signature', () => {
@@ -619,6 +718,50 @@ describe('capturer', () => {
     assert.strictEqual(createdMonitor.disposed, true)
     const stoppedItem = manager.getTreeItem(root)
     assert.strictEqual(stoppedItem.description, 'Ready')
+
+    manager.dispose()
+  })
+
+  it('updates view badge based on active capture sessions', async () => {
+    const sketchPath = await fs.mkdtemp('/tmp/capturer-badge-')
+    const context = {
+      workspaceState: new TestMemento(),
+      subscriptions: [],
+    } as unknown as vscode.ExtensionContext
+    const arduino = createBoardLabArduinoContext({
+      sketchPath,
+      portAddress: '/dev/badge0',
+      detectedPort: true,
+    })
+    const manager = new CapturerManager(context, arduino)
+    const treeView = new FakeTreeView<CapturerNode>()
+    manager.bindTreeView(treeView as unknown as vscode.TreeView<CapturerNode>)
+
+    const config = await manager.addConfig({
+      sketchPath,
+      fqbn: 'esp32:esp32:esp32c3',
+      port: { protocol: 'serial', address: '/dev/badge0' },
+    })
+    assert.ok(config)
+    const root: CapturerRootNode = {
+      type: 'root',
+      configId: config.id,
+    }
+
+    assert.strictEqual(treeView.badge, undefined)
+
+    await manager.startCapturer(root)
+    assert.deepStrictEqual(treeView.badge, {
+      value: 1,
+      tooltip: '1 active crash capture session',
+    })
+
+    await manager.stopCapturer(root)
+    assert.strictEqual(treeView.badge, undefined)
+
+    await manager.startCapturer(root)
+    await manager.removeConfig(root, { force: true })
+    assert.strictEqual(treeView.badge, undefined)
 
     manager.dispose()
   })

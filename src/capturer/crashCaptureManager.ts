@@ -156,6 +156,7 @@ export class CapturerManager {
 
   bindTreeView(treeView) {
     this.treeView = treeView
+    this.updateViewBadge()
   }
 
   async addUsingBoardLabPickers() {
@@ -721,10 +722,12 @@ export class CapturerManager {
   }
 
   refreshTree() {
+    this.updateViewBadge()
     this.onDidChangeTreeDataEmitter.fire(undefined)
   }
 
   refreshRoot(configId) {
+    this.updateViewBadge()
     this.onDidChangeTreeDataEmitter.fire(this.treeModel.getRootNode(configId))
   }
 
@@ -732,6 +735,16 @@ export class CapturerManager {
     this.onDidChangeTreeDataEmitter.fire(
       this.treeModel.getEventNode(configId, signature)
     )
+  }
+
+  updateViewBadge() {
+    if (!this.treeView) {
+      return
+    }
+    const activeSessionCount = countActiveCaptureSessions(
+      this.runtimes.values()
+    )
+    this.treeView.badge = toCapturerViewBadge(activeSessionCount)
   }
 
   ensureRuntime(config) {
@@ -765,6 +778,9 @@ export class CapturerManager {
   handleCapturerEvent(configId, event) {
     const runtime = this.runtimes.get(configId)
     if (!runtime) {
+      return
+    }
+    if (shouldIgnoreCapturerEvent(event)) {
       return
     }
     const hadSummary = runtime.eventsBySignature.has(event.signature)
@@ -1352,7 +1368,7 @@ async function resolveElfIdentity(elfPath, previous) {
   } catch {
     return undefined
   }
-  const sha256Short = sha256.slice
+  const sha256Short = sha256.slice(0, 8)
   return {
     path: elfPath,
     size,
@@ -1567,6 +1583,39 @@ function toDecodedEventMeta(configId, summary) {
     captureSessionLabel: summary.captureSessionLabel,
   }
 }
+
+function shouldIgnoreCapturerEvent(event) {
+  if (hasDecodeAnchors(event)) {
+    return false
+  }
+  const nonEmptyLines = collectNonEmptyEventLines(event)
+  return nonEmptyLines.length <= 1
+}
+
+function hasDecodeAnchors(event) {
+  if (!event || typeof event !== 'object') {
+    return false
+  }
+  const programCounter = event?.lightweight?.programCounter
+  if (typeof programCounter === 'number' && Number.isFinite(programCounter)) {
+    return true
+  }
+  const backtraceAddrs = event?.lightweight?.backtraceAddrs
+  if (Array.isArray(backtraceAddrs) && backtraceAddrs.length > 0) {
+    return true
+  }
+  return Array.isArray(event.fastFrames) && event.fastFrames.length > 0
+}
+
+function collectNonEmptyEventLines(event) {
+  if (!Array.isArray(event?.lines)) {
+    return []
+  }
+  return event.lines.filter(
+    (line) => typeof line === 'string' && line.trim().length > 0
+  )
+}
+
 function upsertEventSummary(cache, event, runtime) {
   const next = toEventSummary(event, runtime)
   const previous = cache.get(event.signature)
@@ -1749,6 +1798,31 @@ function workspaceRelativeSketchPath(sketchPath) {
   }
   return path.relative(workspaceFolder.uri.fsPath, sketchPath)
 }
+
+function countActiveCaptureSessions(runtimes) {
+  let count = 0
+  for (const runtime of runtimes) {
+    if (runtime.monitor && runtime.monitorState !== 'disconnected') {
+      count += 1
+    }
+  }
+  return count
+}
+
+function toCapturerViewBadge(activeSessionCount) {
+  if (activeSessionCount <= 0) {
+    return undefined
+  }
+  return {
+    value: activeSessionCount,
+    tooltip: toCapturerViewBadgeTooltip(activeSessionCount),
+  }
+}
+
+function toCapturerViewBadgeTooltip(activeSessionCount) {
+  const noun = activeSessionCount === 1 ? 'session' : 'sessions'
+  return `${activeSessionCount} active crash capture ${noun}`
+}
 /** (non-API) */
 export const __tests = {
   capturerConfigStateKey,
@@ -1764,6 +1838,8 @@ export const __tests = {
   isRecord,
   resolveSketchBoardName,
   toEventSummary,
+  shouldIgnoreCapturerEvent,
+  resolveElfIdentity,
   upsertEventSummary,
   splitReplaySegments,
   loadCompileBuildOptions,
