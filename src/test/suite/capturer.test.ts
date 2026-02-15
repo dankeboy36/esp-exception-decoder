@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { promises as fs, mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { CapturerEvent, DecodeResult } from 'trbr'
@@ -103,6 +104,10 @@ class FakeTreeView<T> {
   dispose(): void {
     // noop
   }
+}
+
+function mkdtempInSystemTmp(prefix: string): Promise<string> {
+  return fs.mkdtemp(path.join(tmpdir(), prefix))
 }
 
 describe('capturer', () => {
@@ -330,7 +335,7 @@ describe('capturer', () => {
   })
 
   it('resolves ELF identity with stable short hash prefix', async () => {
-    const buildPath = await fs.mkdtemp('/tmp/capturer-elf-identity-')
+    const buildPath = await mkdtempInSystemTmp('capturer-elf-identity-')
     const elfPath = path.join(buildPath, 'sample.elf')
     try {
       await fs.writeFile(elfPath, 'elf-content')
@@ -470,7 +475,7 @@ describe('capturer', () => {
   })
 
   it('loads compile options from build.options.json', async () => {
-    const buildPath = await fs.mkdtemp('/tmp/capturer-build-options-')
+    const buildPath = await mkdtempInSystemTmp('capturer-build-options-')
     try {
       await fs.writeFile(
         path.join(buildPath, 'build.options.json'),
@@ -503,7 +508,7 @@ describe('capturer', () => {
   })
 
   it('loads and persists configs', async () => {
-    const sketchPath = await fs.mkdtemp('/tmp/capturer-load-')
+    const sketchPath = await mkdtempInSystemTmp('capturer-load-')
     const state = new TestMemento(
       new Map<string, unknown>([
         [
@@ -533,7 +538,7 @@ describe('capturer', () => {
     assert.strictEqual(roots.length, 1)
 
     await manager.addConfig({
-      sketchPath: await fs.mkdtemp('/tmp/capturer-save-'),
+      sketchPath: await mkdtempInSystemTmp('capturer-save-'),
       fqbn: 'esp32:esp32:esp32c3',
       port: { protocol: 'serial', address: '/dev/save0' },
     })
@@ -543,7 +548,7 @@ describe('capturer', () => {
   })
 
   it('replays monitor recording and updates tree nodes', async () => {
-    const sketchPath = await fs.mkdtemp('/tmp/capturer-replay-')
+    const sketchPath = await mkdtempInSystemTmp('capturer-replay-')
     const context = {
       workspaceState: new TestMemento(),
       subscriptions: [],
@@ -604,7 +609,7 @@ describe('capturer', () => {
   })
 
   it('shows problems and compile actions when sketch is not compiled', async () => {
-    const sketchPath = await fs.mkdtemp('/tmp/capturer-not-compiled-')
+    const sketchPath = await mkdtempInSystemTmp('capturer-not-compiled-')
     const context = {
       workspaceState: new TestMemento(),
       subscriptions: [],
@@ -644,7 +649,7 @@ describe('capturer', () => {
   })
 
   it('uses warning icon and mismatch description for fqbn mismatches', async () => {
-    const sketchPath = await fs.mkdtemp('/tmp/capturer-fqbn-mismatch-')
+    const sketchPath = await mkdtempInSystemTmp('capturer-fqbn-mismatch-')
     const context = {
       workspaceState: new TestMemento(),
       subscriptions: [],
@@ -676,7 +681,7 @@ describe('capturer', () => {
   })
 
   it('starts and stops monitor lifecycle', async () => {
-    const sketchPath = await fs.mkdtemp('/tmp/capturer-monitor-')
+    const sketchPath = await mkdtempInSystemTmp('capturer-monitor-')
     const context = {
       workspaceState: new TestMemento(),
       subscriptions: [],
@@ -723,7 +728,7 @@ describe('capturer', () => {
   })
 
   it('updates view badge based on active capture sessions', async () => {
-    const sketchPath = await fs.mkdtemp('/tmp/capturer-badge-')
+    const sketchPath = await mkdtempInSystemTmp('capturer-badge-')
     const context = {
       workspaceState: new TestMemento(),
       subscriptions: [],
@@ -767,7 +772,7 @@ describe('capturer', () => {
   })
 
   it('returns no child nodes when no exceptions are detected', async () => {
-    const sketchPath = await fs.mkdtemp('/tmp/capturer-empty-child-')
+    const sketchPath = await mkdtempInSystemTmp('capturer-empty-child-')
     const context = {
       workspaceState: new TestMemento(),
       subscriptions: [],

@@ -151,4 +151,29 @@ describe('findElfPath', () => {
     assert.ok(candidates.includes(expectedBaseOtherCase))
     assert.ok(candidates.includes(expectedSketchOtherCase))
   })
+
+  it('normalizes windows slash styles and emits both folder schemes', () => {
+    const sketchPath = 'D:/a/esp-exception-decoder/esp-exception-decoder/sketch'
+    const normalizedSketchPath = path.win32.normalize(sketchPath)
+    const basePath = 'D:\\Users\\runneradmin\\AppData\\Local\\Temp'
+    const candidates = resolveBuildPathCandidates(sketchPath, {
+      platform: 'win32',
+      userCacheDirPath: basePath,
+      tempDirPath: basePath,
+    })
+    const hash = buildFolderMd5Hash(normalizedSketchPath)
+    const sketchesFolderCandidate = path.win32.join(
+      basePath,
+      'arduino',
+      'sketches',
+      hash
+    )
+    const flatFolderCandidate = path.win32.join(
+      basePath,
+      `arduino-sketch-${hash}`
+    )
+
+    assert.ok(candidates.includes(sketchesFolderCandidate))
+    assert.ok(candidates.includes(flatFolderCandidate))
+  })
 })
