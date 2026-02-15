@@ -216,6 +216,37 @@ describe('markdown', () => {
     assert.equal(markdown.includes('``\\`raw``\\`'), true)
   })
 
+  it('escapes backslashes and backticks in inline code spans', () => {
+    const runtime = createRuntime(
+      {
+        config: {
+          id: 'serial://C:\\tmp\\runtime`id',
+          fqbn: 'esp32:esp32:esp32c3',
+          sketchPath: 'C:\\tmp\\sketch`name',
+          port: {
+            protocol: 'serial',
+            address: 'COM5',
+          },
+        } as any,
+      },
+      {
+        elfPath: 'C:\\tmp\\build\\sketch`name.ino.elf',
+      }
+    )
+    const summary = createEvent({
+      signature: 'sig\\path`tick',
+      captureSessionId: 'session\\id`1',
+    })
+
+    const markdown = toEventReportDocumentMarkdown(runtime, summary)
+    assert.equal(
+      markdown.includes('`C:\\\\tmp\\\\build\\\\sketch\\`name.ino.elf`'),
+      true
+    )
+    assert.equal(markdown.includes('`sig\\\\path\\`tick`'), true)
+    assert.equal(markdown.includes('`session\\\\id\\`1`'), true)
+  })
+
   it('renders capturer state dump for empty and populated events', () => {
     const runtime = createRuntime({
       processedBytes: 16 * 1024,

@@ -616,7 +616,8 @@ function toCommandUri(command: string, args: unknown[] = []): string {
 
 function toInlineCode(value: unknown): string {
   const normalized = normalizeInlineCodeValue(value)
-  return `\`${normalized.replace(/`/g, '\\`')}\``
+  const escaped = normalized.replace(/\\/g, '\\\\').replace(/`/g, '\\`')
+  return `\`${escaped}\``
 }
 
 function normalizeInlineCodeValue(value: unknown): string {
