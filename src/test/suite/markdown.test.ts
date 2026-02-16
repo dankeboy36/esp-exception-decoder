@@ -137,7 +137,7 @@ function createEvent(
 }
 
 describe('markdown', () => {
-  it('renders root markdown with quick fixes when compile output is missing', () => {
+  it('renders root markdown with problems when compile output is missing', () => {
     const runtime = createRuntime(
       {},
       {
@@ -147,16 +147,37 @@ describe('markdown', () => {
       }
     )
     const markdown = toRootTreeItemMarkdown(runtime).value
-    assert.equal(markdown.includes('Quick Fixes:'), true)
-    assert.equal(markdown.includes('Compile Sketch with Debug Symbols'), true)
-    assert.equal(markdown.includes('Compile Sketch'), true)
+    assert.equal(markdown.includes('Quick Fixes:'), false)
     assert.equal(markdown.includes('Problems:'), true)
     assert.equal(markdown.includes('No device found.'), true)
+    assert.equal(
+      markdown.includes(
+        'Use $(light-bulb) `Quick Fixes...` from the view item menu to resolve issues.'
+      ),
+      true
+    )
   })
 
-  it('renders root markdown with compile details and status icons', () => {
+  it('renders compact root markdown with status and board comparison', () => {
     const ready = createRuntime()
-    assert.equal(toRootTreeItemMarkdown(ready).value.includes('$(pass)'), true)
+    const readyMarkdown = toRootTreeItemMarkdown(ready).value
+    assert.equal(readyMarkdown.includes('$(pass)'), true)
+    assert.equal(readyMarkdown.includes('- Capturer Board:'), true)
+    assert.equal(readyMarkdown.includes('- Sketch Board:'), true)
+    assert.equal(
+      readyMarkdown.includes(
+        'Full build metadata is available in crash event preview and capturer state dump.'
+      ),
+      true
+    )
+    assert.equal(readyMarkdown.includes('Compile Details:'), false)
+    assert.equal(readyMarkdown.includes('Optimization Flags'), false)
+    assert.equal(readyMarkdown.includes('ELF SHA256:'), false)
+    assert.equal(readyMarkdown.includes('- Sketch:'), false)
+    assert.equal(
+      readyMarkdown.includes('`/tmp/sketch/build/sketch.ino.elf`'),
+      false
+    )
 
     const capturing = createRuntime({
       monitor: {} as any,
@@ -180,17 +201,91 @@ describe('markdown', () => {
       {},
       { selectedBoardFqbn: 'esp32:esp32:esp32da' }
     )
+    const warningMarkdown = toRootTreeItemMarkdown(warning).value
+    assert.equal(warningMarkdown.includes('$(warning)'), true)
+    assert.equal(warningMarkdown.includes('Quick Fixes:'), false)
     assert.equal(
-      toRootTreeItemMarkdown(warning).value.includes('$(warning)'),
+      warningMarkdown.includes(
+        'Use $(light-bulb) `Quick Fixes...` from the view item menu to resolve issues.'
+      ),
       true
     )
+    assert.equal(readyMarkdown.includes('Quick Fixes:'), false)
     assert.equal(
-      toRootTreeItemMarkdown(ready).value.includes('Optimization Flags'),
-      true
-    )
-    assert.equal(
-      toRootTreeItemMarkdown(ready).value.includes('Quick Fixes:'),
+      readyMarkdown.includes(
+        'Use $(light-bulb) `Quick Fixes...` from the view item menu to resolve issues.'
+      ),
       false
+    )
+
+    const withElfIdentity = createRuntime({
+      elfIdentity: {
+        path: '/tmp/sketch/build/sketch.ino.elf',
+        size: 10,
+        mtimeMs: 2_000,
+        sha256: '95a6c833',
+        sha256Short: '95a6c833',
+        sessionId: 'session',
+      },
+    })
+    const withElfMarkdown = toRootTreeItemMarkdown(withElfIdentity).value
+    assert.equal(withElfMarkdown.includes('ELF SHA256:'), false)
+    assert.equal(withElfMarkdown.includes('ELF Modified:'), false)
+
+    const withSketchConfigOptions = createRuntime(
+      {},
+      {
+        selectedBoardFqbn:
+          'esp32:esp32:esp32da:CPUFreq=240,PartitionScheme=huge_app',
+      }
+    )
+    const withSketchConfigMarkdown = toRootTreeItemMarkdown(
+      withSketchConfigOptions
+    ).value
+    assert.equal(
+      withSketchConfigMarkdown.includes(
+        'esp32:esp32:esp32da:CPUFreq=240,PartitionScheme=huge_app'
+      ),
+      true
+    )
+
+    const withBothFqbnMismatches = createRuntime(
+      {
+        config: {
+          ...createRuntime().config,
+          fqbn: 'esp32:esp32:esp32da',
+        },
+      },
+      {
+        selectedBoardFqbn: 'esp32:esp32:esp32c3',
+        buildOptions: {
+          buildPath: '/tmp/sketch/build',
+          optionsPath: '/tmp/sketch/build/build.options.json',
+          fqbn: 'esp32:esp32:esp32c3',
+          optimizationFlags: '-Og -g3',
+          flags: [],
+        },
+      }
+    )
+    const bothMismatchMarkdown = toRootTreeItemMarkdown(
+      withBothFqbnMismatches
+    ).value
+    assert.equal(bothMismatchMarkdown.includes('Problems:'), true)
+    assert.equal(
+      bothMismatchMarkdown.includes(
+        'Selected sketch FQBN differs from capturer FQBN'
+      ),
+      true
+    )
+    assert.equal(
+      bothMismatchMarkdown.includes('Build FQBN differs from capturer FQBN'),
+      true
+    )
+    assert.equal(
+      bothMismatchMarkdown.includes(
+        'Use $(light-bulb) `Quick Fixes...` from the view item menu to resolve issues.'
+      ),
+      true
     )
   })
 
@@ -204,7 +299,16 @@ describe('markdown', () => {
   })
 
   it('renders full event report markdown with payload and session details', () => {
-    const runtime = createRuntime()
+    const runtime = createRuntime({
+      elfIdentity: {
+        path: '/tmp/sketch/build/sketch.ino.elf',
+        size: 10,
+        mtimeMs: 2_000,
+        sha256: '95a6c833',
+        sha256Short: '95a6c833',
+        sessionId: 'session',
+      },
+    })
     const summary = createEvent({ decodeError: 'decode fail' })
     const markdown = toEventReportDocumentMarkdown(runtime, summary)
     assert.equal(markdown.includes('# ESP Crash Event Report'), true)
@@ -212,6 +316,12 @@ describe('markdown', () => {
     assert.equal(markdown.includes('#### Decoded Stacktrace'), true)
     assert.equal(markdown.includes('Decode Error'), true)
     assert.equal(markdown.includes('Session Details'), true)
+    assert.equal(markdown.includes('Capturer Board'), true)
+    assert.equal(markdown.includes('Sketch Board'), true)
+    assert.equal(markdown.includes('Sketch Folder'), true)
+    assert.equal(markdown.includes('Build FQBN'), true)
+    assert.equal(markdown.includes('Optimization Flags'), true)
+    assert.equal(markdown.includes('ELF SHA256'), true)
     assert.equal(markdown.includes('Program Counter'), true)
     assert.equal(markdown.includes('``\\`raw``\\`'), true)
   })

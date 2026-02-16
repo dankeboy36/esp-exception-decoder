@@ -62,6 +62,7 @@ export interface CapturerManagerApi
   startCapturer(target?: CapturerNode): Promise<void>
   stopCapturer(target?: CapturerNode): Promise<void>
   refresh(target?: CapturerNode): Promise<void>
+  quickFix(target?: CapturerNode, preferredAction?: string): Promise<void>
   compileSketch(target?: CapturerNode): Promise<void>
   compileSketchWithDebugSymbols(target?: CapturerNode): Promise<void>
   copyToClipboard(arg?: unknown): Promise<void>
@@ -133,6 +134,8 @@ interface CapturerTestExports {
     event: CapturerEvent,
     runtime?: CapturerRuntime
   ) => CapturerEventSummary
+  toDraftFromSketch: (sketch: unknown) => CapturerConfigDraft | undefined
+  resolveConfiguredFqbn: (sketch: unknown) => string | undefined
   shouldIgnoreCapturerEvent: (event: CapturerEvent) => boolean
   resolveElfIdentity: (
     elfPath: string,

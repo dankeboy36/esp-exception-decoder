@@ -30,6 +30,9 @@ export const capturerDeleteAllEventsCommandId =
   'espExceptionDecoder.capturerDeleteAllEvents'
 export const capturerShowEventCommandId =
   'espExceptionDecoder.capturerShowEvent'
+export const capturerQuickFixCommandId = 'espExceptionDecoder.capturerQuickFix'
+export const capturerQuickFixSyncSketchBoardCommandId =
+  'espExceptionDecoder.capturerQuickFixSyncSketchBoard'
 export const capturerCompileSketchCommandId =
   'espExceptionDecoder.capturerCompileSketch'
 export const capturerCompileSketchDebugCommandId =

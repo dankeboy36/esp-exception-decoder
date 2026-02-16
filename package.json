@@ -86,6 +86,27 @@
         "category": "ESP Exception Decoder"
       },
       {
+        "command": "espExceptionDecoder.capturerQuickFix",
+        "title": "Quick Fix",
+        "icon": "$(light-bulb)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerQuickFixSyncSketchBoard",
+        "title": "Sync Sketch Board to Capturer FQBN",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerCompileSketchDebug",
+        "title": "Compile Sketch with Debug Symbols",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerCompileSketch",
+        "title": "Compile Sketch",
+        "category": "ESP Exception Decoder"
+      },
+      {
         "command": "espExceptionDecoder.capturerReplayCrash",
         "title": "Replay Crash",
         "icon": "$(debug-rerun)",
@@ -147,18 +168,18 @@
         },
         {
           "command": "espExceptionDecoder.capturerStop",
-          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturing || viewItem == espCapturerRootCapturingHasEvents)",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturing || viewItem == espCapturerRootCapturingHasEvents || viewItem == espCapturerRootCapturingFixableSync || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents)",
           "group": "inline@1"
         },
         {
           "command": "espExceptionDecoder.capturerRemove",
-          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturing || viewItem == espCapturerRootCapturingHasEvents)",
-          "group": "inline@2"
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturing || viewItem == espCapturerRootCapturingHasEvents || viewItem == espCapturerRootCapturingFixableSync || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents)",
+          "group": "inline@3"
         },
         {
           "command": "espExceptionDecoder.capturerRemove",
-          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootStopped || viewItem == espCapturerRootStoppedHasEvents)",
-          "group": "inline@2"
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootStopped || viewItem == espCapturerRootStoppedHasEvents || viewItem == espCapturerRootStoppedFixableSync || viewItem == espCapturerRootStoppedFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableCompile || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "inline@3"
         },
         {
           "command": "espExceptionDecoder.capturerRemove",
@@ -167,7 +188,12 @@
         },
         {
           "command": "espExceptionDecoder.capturerDeleteAllEvents",
-          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingHasEvents || viewItem == espCapturerRootReadyHasEvents || viewItem == espCapturerRootStoppedHasEvents)",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingHasEvents || viewItem == espCapturerRootReadyHasEvents || viewItem == espCapturerRootStoppedHasEvents || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "inline@2"
+        },
+        {
+          "submenu": "capturerQuickFixId",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingFixableSync || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableSync || viewItem == espCapturerRootStoppedFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableCompile || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
           "group": "inline@2"
         },
         {
@@ -184,6 +210,23 @@
           "command": "espExceptionDecoder.capturerDeleteEvent",
           "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerEventDetected || viewItem == espCapturerEventDecoding || viewItem == espCapturerEventDecoded || viewItem == espCapturerEventEvaluating || viewItem == espCapturerEventEvaluated)",
           "group": "inline@3"
+        }
+      ],
+      "capturerQuickFixId": [
+        {
+          "command": "espExceptionDecoder.capturerQuickFixSyncSketchBoard",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingFixableSync || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableSync || viewItem == espCapturerRootStoppedFixableSyncHasEvents)",
+          "group": "1_sync@1"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCompileSketchDebug",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableCompile || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "2_compile@1"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCompileSketch",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableCompile || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "2_compile@2"
         }
       ],
       "commandPalette": [
@@ -208,6 +251,22 @@
           "when": "false"
         },
         {
+          "command": "espExceptionDecoder.capturerQuickFix",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerQuickFixSyncSketchBoard",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCompileSketchDebug",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCompileSketch",
+          "when": "false"
+        },
+        {
           "command": "espExceptionDecoder.capturerReplayCrash",
           "when": "false"
         },
@@ -229,6 +288,13 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "capturerQuickFixId",
+        "icon": "$(light-bulb)",
+        "label": "Quick Fixes..."
+      }
+    ],
     "views": {
       "espExceptionDecoderPanel": [
         {

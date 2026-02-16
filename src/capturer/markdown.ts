@@ -11,9 +11,6 @@ import {
 import vscode from 'vscode'
 
 import {
-  capturerCompileSketchCommandId,
-  capturerCompileSketchDebugCommandId,
-  capturerCopyToClipboardCommandId,
   statusCapturing,
   statusDisconnected,
   statusError,
@@ -27,7 +24,11 @@ import {
   statusWarning,
 } from './constants'
 import type { CapturerEventSummary, CapturerRuntime } from './model'
-import { collectRuntimeProblems, getRuntimeStatus } from './runtimeModel'
+import {
+  collectRuntimeProblems,
+  getRuntimeStatus,
+  hasRuntimeQuickFix,
+} from './runtimeModel'
 
 interface EventReportMarkdownOptions {
   headingLevel?: number
@@ -138,115 +139,49 @@ export function toRootTreeItemMarkdown(
   runtime: CapturerRuntime
 ): vscode.MarkdownString {
   const md = new vscode.MarkdownString(undefined, true)
-  md.isTrusted = {
-    enabledCommands: [
-      capturerCompileSketchCommandId,
-      capturerCompileSketchDebugCommandId,
-      capturerCopyToClipboardCommandId,
-    ],
-  }
 
-  const sketchName = path.basename(runtime.config.sketchPath)
   const status = getRuntimeStatus(runtime)
-  const portLabel = runtime.config.port.address
-  const portInline = toInlineCode(portLabel)
-  const fqbnInline = toInlineCode(runtime.config.fqbn)
-  const fqbnLabel = runtime.readiness.boardName
-    ? `${markdownEscape(runtime.readiness.boardName)} (${fqbnInline})`
-    : fqbnInline
-  const sketchNameInline = toInlineCode(sketchName)
-  const sketchFolderInline = toInlineCode(runtime.config.sketchPath)
   const statusIcon = toStatusCodicon(status)
-  const compileOptions = runtime.readiness.buildOptions
   const problems = collectRuntimeProblems(runtime)
-  const rootNodeArg = [
-    {
-      type: 'root',
-      configId: runtime.config.id,
-    } as const,
-  ]
-  const needsCompileQuickFixes =
-    !runtime.readiness.hasCompileSummary || !runtime.readiness.elfPath
-  const fqbnCopyLink = ` [$(copy)](${toCommandUri(
-    capturerCopyToClipboardCommandId,
-    [runtime.config.fqbn]
-  )} "Copy FQBN to clipboard")`
-  const sketchFolderCopyLink = ` [$(copy)](${toCommandUri(
-    capturerCopyToClipboardCommandId,
-    [runtime.config.sketchPath]
-  )} "Copy sketch folder to clipboard")`
 
   md.appendMarkdown(
-    `${statusIcon} ${portInline} (${markdownEscape(status)}):\n`
+    `${statusIcon} ${toInlineCode(runtime.config.port.address)} (${markdownEscape(status)}):\n`
   )
-  md.appendMarkdown(`- Sketch: ${sketchNameInline}\n`)
-  md.appendMarkdown(`- FQBN: ${fqbnLabel}${fqbnCopyLink}\n`)
   md.appendMarkdown(
-    `- Sketch Folder: ${sketchFolderInline}${sketchFolderCopyLink}\n`
+    `- Capturer Board: ${toBoardLabel(
+      runtime.readiness.boardName,
+      runtime.config.fqbn
+    )}\n`
   )
-  md.appendMarkdown('\n')
-
-  md.appendMarkdown('Compile Details:\n')
-  if (!runtime.readiness.hasCompileSummary) {
-    md.appendMarkdown('- ELF: not available\n')
-  } else if (!runtime.readiness.elfPath) {
-    md.appendMarkdown('- ELF: not found\n')
-  } else {
-    md.appendMarkdown(`- ELF: ${toInlineCode(runtime.readiness.elfPath)} `)
-    md.appendMarkdown(
-      `[$(copy)](${toCommandUri(capturerCopyToClipboardCommandId, [
-        runtime.readiness.elfPath,
-      ])} "Copy ELF path to clipboard")\n`
-    )
-  }
-  if (runtime.elfIdentity) {
-    md.appendMarkdown(
-      `- ELF SHA256: ${toInlineCode(runtime.elfIdentity.sha256Short)}\n`
-    )
-    md.appendMarkdown(
-      `- ELF Modified: ${toInlineCode(
-        formatLocalTimestamp(runtime.elfIdentity.mtimeMs)
-      )}\n`
-    )
-  }
-  if (compileOptions?.fqbn) {
-    md.appendMarkdown(
-      `- Build FQBN: ${toInlineCode(compileOptions.fqbn)} [$(copy)](${toCommandUri(
-        capturerCopyToClipboardCommandId,
-        [compileOptions.fqbn]
-      )} "Copy build FQBN to clipboard")\n`
-    )
-  }
-  if (compileOptions?.optimizationFlags) {
-    md.appendMarkdown(
-      `- Optimization Flags: ${toInlineCode(compileOptions.optimizationFlags)}\n`
-    )
-  }
+  md.appendMarkdown(
+    `- Sketch Board: ${toBoardLabel(
+      runtime.readiness.selectedBoardName,
+      runtime.readiness.selectedBoardFqbn
+    )}\n`
+  )
 
   if (problems.length > 0) {
     md.appendMarkdown('\nProblems:\n')
-    for (const problem of problems) {
+    const visibleProblems = problems.slice(0, 3)
+    for (const problem of visibleProblems) {
       const icon = problem.severity === 'error' ? '$(error)' : '$(warning)'
       md.appendMarkdown(`- ${icon} ${markdownEscape(problem.message)}\n`)
     }
+    if (problems.length > visibleProblems.length) {
+      md.appendMarkdown(
+        `- $(info) ${problems.length - visibleProblems.length} more issue(s)\n`
+      )
+    }
+    if (hasRuntimeQuickFix(runtime, problems)) {
+      md.appendMarkdown(
+        '\n_Use $(light-bulb) `Quick Fixes...` from the view item menu to resolve issues._\n'
+      )
+    }
   }
 
-  if (needsCompileQuickFixes) {
-    md.appendMarkdown('\nQuick Fixes:\n')
-    md.appendMarkdown(
-      `- [$(inspect) Compile Sketch with Debug Symbols](${toCommandUri(
-        capturerCompileSketchDebugCommandId,
-        rootNodeArg
-      )} "Compile sketch with debug symbols") (Recommended)\n`
-    )
-    md.appendMarkdown(
-      `- [$(check) Compile Sketch](${toCommandUri(
-        capturerCompileSketchCommandId,
-        rootNodeArg
-      )} "Compile sketch")\n`
-    )
-  }
-
+  md.appendMarkdown(
+    '\n_Full build metadata is available in crash event preview and capturer state dump._\n'
+  )
   md.appendMarkdown('\n----\n')
   md.appendMarkdown(`_Hold ${mouseOverModifierLabel()} key to mouse over_\n`)
 
@@ -364,13 +299,16 @@ function appendEventReportMarkdown(
   const includeRuntimeSection = options.includeRuntimeSection ?? true
   const includePayloadSections = options.includePayloadSections ?? true
   const compact = options.compact ?? false
-  const compileOptions = runtime.readiness.buildOptions
   const errorSummary = toSingleLine(event.reason) ?? event.reason.trim()
-  const boardName =
-    runtime.readiness.boardName ?? runtime.readiness.selectedBoardName
-  const boardLabel = boardName
-    ? `${markdownEscape(boardName)} (${toInlineCode(runtime.config.fqbn)})`
-    : toInlineCode(runtime.config.fqbn)
+  const compileOptions = runtime.readiness.buildOptions
+  const capturerBoardLabel = toBoardLabel(
+    runtime.readiness.boardName,
+    runtime.config.fqbn
+  )
+  const sketchBoardLabel = toBoardLabel(
+    runtime.readiness.selectedBoardName,
+    runtime.readiness.selectedBoardFqbn
+  )
   const decodedException = resolveDecodedExceptionSummary(event)
   const decodedLocation = resolveDecodedLocationSummary(event.decodedResult)
 
@@ -403,7 +341,8 @@ function appendEventReportMarkdown(
   lines.push('')
 
   lines.push('#### Build Context')
-  lines.push(`- Board: ${boardLabel}`)
+  lines.push(`- Capturer Board: ${capturerBoardLabel}`)
+  lines.push(`- Sketch Board: ${sketchBoardLabel}`)
   lines.push(
     `- Sketch: ${toInlineCode(path.basename(runtime.config.sketchPath))}`
   )
@@ -610,14 +549,21 @@ function toStatusCodicon(status: string): string {
   }
 }
 
-function toCommandUri(command: string, args: unknown[] = []): string {
-  return `command:${command}?${encodeURIComponent(JSON.stringify(args))}`
-}
-
 function toInlineCode(value: unknown): string {
   const normalized = normalizeInlineCodeValue(value)
   const escaped = normalized.replace(/\\/g, '\\\\').replace(/`/g, '\\`')
   return `\`${escaped}\``
+}
+
+function toBoardLabel(
+  name: string | undefined,
+  fqbn: string | undefined
+): string {
+  if (!fqbn) {
+    return '_not available_'
+  }
+  const fqbnInline = toInlineCode(fqbn)
+  return name ? `${markdownEscape(name)} (${fqbnInline})` : fqbnInline
 }
 
 function normalizeInlineCodeValue(value: unknown): string {

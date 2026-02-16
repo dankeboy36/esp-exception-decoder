@@ -1,14 +1,28 @@
-// @ts-nocheck
 import { createHash } from 'node:crypto'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { FQBN } from 'fqbn'
-import { createCapturer, decode } from 'trbr'
+import {
+  createCapturer,
+  decode,
+  type CapturerEvent,
+  type CapturerOptions,
+} from 'trbr'
 import vscode from 'vscode'
+import type { ArduinoContext, SketchFolder } from 'vscode-arduino-api'
 
+import type { BoardLabContextExt } from '../boardLabExt'
 import { isBoardLabContextExt } from '../boardLabExt'
-import { createDecodeParams } from '../decodeParams'
+import {
+  isPortIdentifierLike,
+  pathEquals,
+  resolveConfiguredFqbn,
+  resolveSketchTargetWithBoardLab,
+  toDraftFromSketch,
+  type SketchTargetSelectionModeItem,
+} from '../boardLabTarget'
+import { createDecodeParams, type DecodeParams } from '../decodeParams'
 import { findElfPath, resolveBuildPathFromSketchPath } from '../findElfPath'
 import {
   capturerCompileSketchCommandId,
@@ -18,6 +32,8 @@ import {
   capturerCreateCommandId,
   capturerDeleteAllEventsCommandId,
   capturerDeleteEventCommandId,
+  capturerQuickFixCommandId,
+  capturerQuickFixSyncSketchBoardCommandId,
   capturerRefreshCommandId,
   capturerRemoveCommandId,
   capturerReplayCrashCommandId,
@@ -51,6 +67,23 @@ import {
   toParsedFrameLocation,
   toRootTreeItemMarkdown,
 } from './markdown'
+import type {
+  CapturerConfig,
+  CapturerConfigDraft,
+  CapturerConfigValidationResult,
+  CapturerDecodedEventPayload,
+  CapturerEventNode,
+  CapturerEventSummary,
+  CapturerNode,
+  CapturerReadiness,
+  CapturerRemovedCapturerMeta,
+  CapturerRemovedEventMeta,
+  CapturerRootNode,
+  CapturerRuntime,
+  CompileBuildOptionsInfo,
+  ElfIdentity,
+  MonitorClientWithClose,
+} from './model'
 import {
   collectRuntimeProblems,
   eventContextValue,
@@ -64,24 +97,93 @@ import {
 import { CapturerTreeModel } from './treeModel'
 
 export type {
+  CapturerConfig,
+  CapturerConfigDraft,
   CapturerDecodedEventMeta,
   CapturerDecodedEventPayload,
   CapturerEventNode,
+  CapturerEventSummary,
   CapturerFrameNode,
   CapturerNode,
+  CapturerReadiness,
   CapturerRemovedCapturerMeta,
   CapturerRemovedEventMeta,
   CapturerRootNode,
+  CapturerRuntime,
+  CompileBuildOptionsInfo,
 } from './model'
-export class CapturerManager {
+
+type ArduinoContextWithBoardLab = ArduinoContext & BoardLabContextExt
+
+type EvaluateDecodedEvent = (
+  payload: CapturerDecodedEventPayload
+) => Promise<void>
+
+type OnDecodedEvent = (
+  payload: CapturerDecodedEventPayload
+) => Promise<void> | void
+
+type OnRemovedDecodedEvent = (
+  payload: CapturerRemovedEventMeta
+) => Promise<void> | void
+
+type OnRemovedCapturer = (
+  payload: CapturerRemovedCapturerMeta
+) => Promise<void> | void
+
+type CapturerCommandTarget = CapturerNode | undefined
+type CapturerCompileCommand =
+  | 'boardlab.compile'
+  | 'boardlab.compileWithDebugSymbols'
+type TransferRuntime = Pick<
+  CapturerRuntime,
+  'processedBytes' | 'processedFirstAt' | 'processedLastAt'
+>
+type DecodeSketchLike = Pick<
+  SketchFolder,
+  'compileSummary' | 'sketchPath' | 'board'
+>
+
+interface DecodeEventSummaryOptions {
+  includeFrameVars: boolean
+  trackDurationAs?: 'decode' | 'evaluate'
+}
+
+interface QuickFixItem extends vscode.QuickPickItem {
+  action: 'sync-sketch-fqbn' | 'compile-debug' | 'compile'
+  run: () => Promise<void>
+}
+
+export class CapturerManager
+  implements vscode.Disposable, vscode.TreeDataProvider<CapturerNode>
+{
+  private readonly context: vscode.ExtensionContext
+  private readonly arduinoContext: ArduinoContextWithBoardLab
+  private readonly evaluateDecodedEvent?: EvaluateDecodedEvent
+  private readonly onDecodedEvent?: OnDecodedEvent
+  private readonly onRemovedDecodedEvent?: OnRemovedDecodedEvent
+  private readonly onRemovedCapturer?: OnRemovedCapturer
+  private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<
+    CapturerNode | undefined
+  >()
+
+  readonly onDidChangeTreeData: vscode.Event<CapturerNode | undefined>
+  private readonly runtimes = new Map<string, CapturerRuntime>()
+  private readonly treeModel = new CapturerTreeModel()
+  private readonly toDispose: vscode.Disposable[] = []
+  private configs: CapturerConfig[] = []
+  private readonly ownsCrashReportProvider: boolean
+  private readonly crashReportProvider: CrashReportContentProvider
+  private treeView?: vscode.TreeView<CapturerNode>
+
   constructor(
-    context,
-    arduinoContext,
-    crashReportProvider,
-    evaluateDecodedEvent,
-    onDecodedEvent,
-    onRemovedDecodedEvent,
-    onRemovedCapturer
+    context: vscode.ExtensionContext,
+    arduinoContext: ArduinoContextWithBoardLab,
+    crashReportProvider?: CrashReportContentProvider,
+    evaluateDecodedEvent?: EvaluateDecodedEvent,
+    onDecodedEvent?: OnDecodedEvent,
+    onRemovedDecodedEvent?: OnRemovedDecodedEvent,
+    onRemovedCapturer?: OnRemovedCapturer
   ) {
     this.context = context
     this.arduinoContext = arduinoContext
@@ -89,11 +191,6 @@ export class CapturerManager {
     this.onDecodedEvent = onDecodedEvent
     this.onRemovedDecodedEvent = onRemovedDecodedEvent
     this.onRemovedCapturer = onRemovedCapturer
-    this.onDidChangeTreeDataEmitter = new vscode.EventEmitter()
-    this.runtimes = new Map()
-    this.treeModel = new CapturerTreeModel()
-    this.toDispose = []
-    this.configs = []
     this.onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event
     this.ownsCrashReportProvider = !crashReportProvider
     this.crashReportProvider =
@@ -132,15 +229,13 @@ export class CapturerManager {
         }
       })
     )
-    if (boardsListWatcher) {
-      this.toDispose.push(
-        boardsListWatcher.onDidChangeDetectedPorts(() => {
-          for (const config of this.configs) {
-            this.refreshReadiness(config.id)
-          }
-        })
-      )
-    }
+    this.toDispose.push(
+      boardsListWatcher.onDidChangeDetectedPorts(() => {
+        for (const config of this.configs) {
+          this.refreshReadiness(config.id)
+        }
+      })
+    )
   }
 
   dispose() {
@@ -154,40 +249,90 @@ export class CapturerManager {
     vscode.Disposable.from(...this.toDispose).dispose()
   }
 
-  bindTreeView(treeView) {
+  bindTreeView(treeView: vscode.TreeView<CapturerNode>) {
     this.treeView = treeView
     this.updateViewBadge()
   }
 
   async addUsingBoardLabPickers() {
-    const sketch = await vscode.commands.executeCommand('boardlab.pickSketch')
-    if (!sketch) return
-    const board = await vscode.commands.executeCommand('boardlab.pickBoard')
-    if (!board) return
-    const port = await vscode.commands.executeCommand('boardlab.pickPort')
-    if (!port) return
-    const sketchPath = sketch.uri.fsPath
-    const draftFromSketch = toDraftFromSketch({ sketchPath, board, port })
-    if (draftFromSketch) {
-      await this.addConfig(draftFromSketch)
+    const draft = await resolveSketchTargetWithBoardLab({
+      boardLab: this.arduinoContext,
+      openedSketches: this.arduinoContext.openedSketches,
+      pickMode: async (items: readonly SketchTargetSelectionModeItem[]) =>
+        vscode.window.showQuickPick(items, {
+          placeHolder:
+            'Create capturer from sketch target or customize board/port',
+        }),
+      onError: (message: string) => vscode.window.showErrorMessage(message),
+    })
+    if (!draft) {
+      return
     }
+
+    const existing = this.findExistingConfig(draft)
+    if (existing) {
+      const duplicateAction = await vscode.window.showQuickPick(
+        [
+          {
+            label: 'Use existing capturer',
+            description: `${existing.port.address} | ${existing.fqbn}`,
+            action: 'use',
+          },
+          {
+            label: 'Start existing capturer',
+            description: `${existing.port.address} | ${existing.fqbn}`,
+            action: 'start',
+          },
+          {
+            label: 'Cancel',
+            description: 'Keep current setup unchanged',
+            action: 'cancel',
+          },
+        ],
+        {
+          placeHolder:
+            'A capturer already exists for this sketch, board, and port',
+        }
+      )
+      if (!duplicateAction || duplicateAction.action === 'cancel') {
+        return
+      }
+      if (duplicateAction.action === 'start') {
+        await this.startCapturer({ type: 'root', configId: existing.id })
+        return
+      }
+      this.refreshRoot(existing.id)
+      return
+    }
+
+    await this.addConfig(draft)
   }
 
-  async addConfig(draft) {
+  findExistingConfig(draft: CapturerConfigDraft) {
+    return this.configs.find(
+      (config) =>
+        pathEquals(config.sketchPath, draft.sketchPath) &&
+        config.fqbn === draft.fqbn &&
+        arePortsEqual(config.port, draft.port)
+    )
+  }
+
+  async addConfig(draft: CapturerConfigDraft) {
     const validated = validateCapturerConfig(draft)
     if (!validated.ok) {
       vscode.window.showErrorMessage(validated.message)
       return undefined
     }
-    const exists = await pathExists(validated.value.sketchPath)
+    const validatedValue = validated.value
+    const exists = await pathExists(validatedValue.sketchPath)
     if (!exists) {
       vscode.window.showErrorMessage(
-        `Sketch path does not exist: ${validated.value.sketchPath}`
+        `Sketch path does not exist: ${validatedValue.sketchPath}`
       )
       return undefined
     }
-    const id = buildCapturerId(validated.value)
-    const config = { id, ...validated.value }
+    const id = buildCapturerId(validatedValue)
+    const config: CapturerConfig = { id, ...validatedValue }
     const previousIndex = this.configs.findIndex((entry) => entry.id === id)
     if (previousIndex >= 0) {
       this.configs[previousIndex] = config
@@ -204,7 +349,10 @@ export class CapturerManager {
     return config
   }
 
-  async removeConfig(target, options = { force: false }) {
+  async removeConfig(
+    target?: CapturerNode,
+    options: { force?: boolean } = {}
+  ): Promise<void> {
     const configId = await this.resolveConfigId(
       target,
       'Select capturer to remove'
@@ -244,7 +392,7 @@ export class CapturerManager {
     this.refreshTree()
   }
 
-  async startCapturer(target) {
+  async startCapturer(target?: CapturerNode): Promise<void> {
     const configId = await this.resolveConfigId(
       target,
       'Select capturer to start'
@@ -259,8 +407,8 @@ export class CapturerManager {
     if (runtime.monitor) {
       return
     }
-    const problems = (0, collectRuntimeProblems)(runtime)
-    if (!(0, isReadyToRecord)(runtime, problems)) {
+    const problems = collectRuntimeProblems(runtime)
+    if (!isReadyToRecord(runtime, problems)) {
       return
     }
     try {
@@ -303,7 +451,7 @@ export class CapturerManager {
     }
   }
 
-  async stopCapturer(target) {
+  async stopCapturer(target?: CapturerNode): Promise<void> {
     const configId = await this.resolveConfigId(
       target,
       'Select capturer to stop'
@@ -319,7 +467,7 @@ export class CapturerManager {
     this.refreshRoot(configId)
   }
 
-  async refresh(target) {
+  async refresh(target?: CapturerNode): Promise<void> {
     if (target) {
       const configId = await this.resolveConfigId(target, 'Select capturer')
       if (!configId) {
@@ -351,15 +499,133 @@ export class CapturerManager {
     this.refreshTree()
   }
 
-  async compileSketch(target) {
+  async compileSketch(target?: CapturerNode): Promise<void> {
     await this.runCompileForRuntime(target, 'boardlab.compile')
   }
 
-  async compileSketchWithDebugSymbols(target) {
+  async compileSketchWithDebugSymbols(target?: CapturerNode): Promise<void> {
     await this.runCompileForRuntime(target, 'boardlab.compileWithDebugSymbols')
   }
 
-  async runCompileForRuntime(target, command) {
+  async quickFix(
+    target?: CapturerNode,
+    preferredAction?: string
+  ): Promise<void> {
+    const configId = await this.resolveConfigId(
+      target,
+      'Select capturer to apply quick fix'
+    )
+    if (!configId) {
+      return
+    }
+    const runtime = this.runtimes.get(configId)
+    if (!runtime) {
+      return
+    }
+    const quickFixes = this.collectQuickFixes(runtime)
+    if (quickFixes.length === 0) {
+      vscode.window.showInformationMessage(
+        'No quick fixes are available for this capturer.'
+      )
+      return
+    }
+    if (typeof preferredAction === 'string' && preferredAction.length > 0) {
+      const preferred = quickFixes.find(
+        (quickFix) => quickFix.action === preferredAction
+      )
+      if (preferred) {
+        await preferred.run()
+        return
+      }
+    }
+    await quickFixes[0].run()
+  }
+
+  collectQuickFixes(runtime: CapturerRuntime): QuickFixItem[] {
+    const rootTarget: CapturerRootNode = {
+      type: 'root',
+      configId: runtime.config.id,
+    }
+    const problems = collectRuntimeProblems(runtime)
+    const hasSketchFqbnMismatch = problems.some(
+      (problem) => problem.code === 'fqbn-mismatch-selected-engine'
+    )
+    const hasBuildFqbnMismatch = problems.some(
+      (problem) => problem.code === 'fqbn-mismatch-selected-build'
+    )
+    const needsCompileQuickFixes =
+      !runtime.readiness.hasCompileSummary ||
+      !runtime.readiness.elfPath ||
+      hasBuildFqbnMismatch
+
+    if (hasSketchFqbnMismatch) {
+      const syncQuickFix: QuickFixItem = {
+        label: 'Sync Sketch Board to Capturer FQBN',
+        description: runtime.config.fqbn,
+        action: 'sync-sketch-fqbn',
+        run: () => this.syncSketchBoardWithCapturer(runtime.config.id),
+      }
+      return [syncQuickFix]
+    }
+    const quickFixes: QuickFixItem[] = []
+    if (needsCompileQuickFixes) {
+      const compileWithDebugQuickFix: QuickFixItem = {
+        label: 'Compile Sketch with Debug Symbols',
+        description: '(Recommended)',
+        action: 'compile-debug',
+        run: () =>
+          this.runCompileForRuntime(
+            rootTarget,
+            'boardlab.compileWithDebugSymbols'
+          ),
+      }
+      const compileQuickFix: QuickFixItem = {
+        label: 'Compile Sketch',
+        action: 'compile',
+        run: () => this.runCompileForRuntime(rootTarget, 'boardlab.compile'),
+      }
+      quickFixes.push(compileWithDebugQuickFix, compileQuickFix)
+    }
+    return quickFixes
+  }
+
+  async syncSketchBoardWithCapturer(configId: string): Promise<void> {
+    const runtime = this.runtimes.get(configId)
+    if (!runtime) {
+      return
+    }
+    const sketchFolder = this.arduinoContext.openedSketches.find(
+      ({ sketchPath }) => sketchPath === runtime.config.sketchPath
+    )
+    if (!sketchFolder) {
+      vscode.window.showInformationMessage(
+        `Could not find sketch at ${runtime.config.sketchPath}`
+      )
+      return
+    }
+    const targetFqbn = sanitizeFqbn(runtime.config.fqbn)
+    if (!targetFqbn) {
+      vscode.window.showErrorMessage('Capturer FQBN is invalid.')
+      return
+    }
+    const selected = await this.arduinoContext.setBoardByFqbn(
+      targetFqbn,
+      sketchFolder
+    )
+    if (!selected) {
+      vscode.window.showWarningMessage(
+        `Could not set sketch board to capturer FQBN ${runtime.config.fqbn}.`
+      )
+      return
+    }
+    await this.refreshReadiness(configId)
+    this.refreshRoot(configId)
+  }
+
+  async runCompileForRuntime(
+    target: CapturerCommandTarget,
+    command: CapturerCompileCommand
+  ): Promise<void> {
     const configId = await this.resolveConfigId(
       target,
       'Select capturer to compile sketch'
@@ -387,14 +653,17 @@ export class CapturerManager {
     this.refreshRoot(configId)
   }
 
-  async copyToClipboard(arg) {
+  async copyToClipboard(arg?: unknown): Promise<void> {
     if (typeof arg !== 'string' || arg.length === 0) {
       return
     }
     await vscode.env.clipboard.writeText(arg)
   }
 
-  async replayRecording(target, recordingUri) {
+  async replayRecording(
+    target?: CapturerNode,
+    recordingUri?: vscode.Uri
+  ): Promise<void> {
     const configId = await this.resolveConfigId(
       target,
       'Select capturer for replay'
@@ -431,7 +700,7 @@ export class CapturerManager {
     this.refreshRoot(configId)
   }
 
-  async replayEvent(target) {
+  async replayEvent(target?: CapturerNode): Promise<void> {
     if (!target || target.type !== 'event') {
       return
     }
@@ -489,7 +758,7 @@ export class CapturerManager {
     }
   }
 
-  async deleteEvent(target) {
+  async deleteEvent(target?: CapturerNode): Promise<void> {
     if (!target || (target.type !== 'event' && target.type !== 'frame')) {
       return
     }
@@ -505,7 +774,7 @@ export class CapturerManager {
     this.refreshRoot(target.configId)
   }
 
-  async deleteAllEvents(target) {
+  async deleteAllEvents(target?: CapturerNode): Promise<void> {
     const configId = await this.resolveConfigId(
       target,
       'Select capturer to clear crash events'
@@ -523,7 +792,7 @@ export class CapturerManager {
     this.refreshRoot(configId)
   }
 
-  async dumpCapturerState(target) {
+  async dumpCapturerState(target?: CapturerNode): Promise<void> {
     const runtime = await this.resolveRuntimeForStateDump(target)
     if (!runtime) {
       return
@@ -534,11 +803,13 @@ export class CapturerManager {
     )
     await this.showMarkdownReportPreview(
       `capturer-state-${path.basename(runtime.config.sketchPath)}`,
-      (0, toCapturerStateDumpMarkdown)(runtime, rawState, distinctEvents)
+      toCapturerStateDumpMarkdown(runtime, rawState, distinctEvents)
     )
   }
 
-  async resolveRuntimeForStateDump(target) {
+  async resolveRuntimeForStateDump(
+    target?: CapturerNode
+  ): Promise<CapturerRuntime | undefined> {
     const configIdFromTarget = target?.configId
     if (configIdFromTarget) {
       return this.runtimes.get(configIdFromTarget)
@@ -564,7 +835,7 @@ export class CapturerManager {
     return pick ? this.runtimes.get(pick.configId) : undefined
   }
 
-  async showEvent(target) {
+  async showEvent(target?: CapturerNode): Promise<void> {
     if (!target || target.type !== 'event') {
       return
     }
@@ -575,29 +846,32 @@ export class CapturerManager {
     }
     await this.showMarkdownReportPreview(
       `crash-event-${path.basename(runtime.config.sketchPath)}`,
-      (0, toEventReportDocumentMarkdown)(runtime, summary)
+      toEventReportDocumentMarkdown(runtime, summary)
     )
   }
 
-  async showMarkdownReportPreview(name, content) {
+  async showMarkdownReportPreview(
+    name: string,
+    content: string
+  ): Promise<void> {
     const reportUri = this.crashReportProvider.createReportUri(name, content)
     await vscode.commands.executeCommand('markdown.showPreview', reportUri)
   }
 
-  getTreeItem(element) {
+  getTreeItem(element: CapturerNode): vscode.TreeItem {
     if (element.type === 'root') {
       const runtime = this.runtimes.get(element.configId)
       if (!runtime) {
         return new vscode.TreeItem(element.configId)
       }
       const item = new vscode.TreeItem(
-        (0, toRootLabel)(runtime),
+        toRootLabel(runtime),
         vscode.TreeItemCollapsibleState.Collapsed
       )
       item.id = runtime.config.id
-      item.description = (0, resolveRootDescription)(runtime)
-      item.tooltip = (0, toRootTreeItemMarkdown)(runtime)
-      item.contextValue = (0, rootContextValue)(runtime)
+      item.description = resolveRootDescription(runtime)
+      item.tooltip = toRootTreeItemMarkdown(runtime)
+      item.contextValue = rootContextValue(runtime)
       item.iconPath = toRuntimeIcon(runtime)
       return item
     }
@@ -605,11 +879,9 @@ export class CapturerManager {
       const runtime = this.runtimes.get(element.configId)
       const summary = runtime?.eventsBySignature.get(element.signature)
       const frame = summary
-        ? (0, collectDecodedStackFrames)(summary.decodedResult)[
-            element.frameIndex
-          ]
+        ? collectDecodedStackFrames(summary.decodedResult)[element.frameIndex]
         : undefined
-      const frameLocation = (0, toParsedFrameLocation)(frame)
+      const frameLocation = toParsedFrameLocation(frame)
       const sourceKind = classifyDecodedSource(
         frameLocation?.file,
         runtime?.config.sketchPath
@@ -627,7 +899,7 @@ export class CapturerManager {
           ? toFrameUri(frameLocation.file, runtime.config.sketchPath)
           : undefined
       const item = new vscode.TreeItem(
-        (0, frameToLabel)(frame),
+        frameToLabel(frame),
         vscode.TreeItemCollapsibleState.None
       )
       item.id = `frame:${element.configId}:${element.signature}:${element.frameIndex}`
@@ -654,7 +926,7 @@ export class CapturerManager {
           }
         }
       } else {
-        item.description = (0, frameToDescription)(frame)
+        item.description = frameToDescription(frame)
       }
       item.contextValue = 'espCapturerFrame'
       return item
@@ -662,10 +934,10 @@ export class CapturerManager {
     const runtime = this.runtimes.get(element.configId)
     const summary = runtime?.eventsBySignature.get(element.signature)
     const label = summary
-      ? (0, eventDisplayLabel)(summary)
-      : (element.signature.slice.trim() ?? 'Unknown event')
+      ? eventDisplayLabel(summary)
+      : element.signature.trim() || 'Unknown event'
     const decodedFrames = summary
-      ? (0, collectDecodedStackFrames)(summary.decodedResult)
+      ? collectDecodedStackFrames(summary.decodedResult)
       : []
     const collapsibleState =
       decodedFrames.length === 0
@@ -678,10 +950,8 @@ export class CapturerManager {
     item.id = `event:${element.configId}:${element.signature}`
     item.description = summary ? toEventDescription(summary) : undefined
     item.tooltip =
-      summary && runtime
-        ? (0, toEventTreeItemMarkdown)(runtime, summary)
-        : undefined
-    item.contextValue = (0, eventContextValue)(summary)
+      summary && runtime ? toEventTreeItemMarkdown(runtime, summary) : undefined
+    item.contextValue = eventContextValue(summary)
     item.iconPath =
       summary?.decodeState === 'decoding' ||
       summary?.decodeState === 'evaluating'
@@ -690,7 +960,7 @@ export class CapturerManager {
     return item
   }
 
-  getChildren(element) {
+  getChildren(element?: CapturerNode): CapturerNode[] {
     if (!element) {
       return this.treeModel.getRootNodes(this.configs)
     }
@@ -700,7 +970,7 @@ export class CapturerManager {
     if (element.type === 'event') {
       const runtime = this.runtimes.get(element.configId)
       const summary = runtime?.eventsBySignature.get(element.signature)
-      const frames = (0, collectDecodedStackFrames)(summary?.decodedResult)
+      const frames = collectDecodedStackFrames(summary?.decodedResult)
       return this.treeModel.getFrameNodes(
         element.configId,
         element.signature,
@@ -711,7 +981,7 @@ export class CapturerManager {
     return this.treeModel.getEventNodes(element.configId, runtime)
   }
 
-  getParent(element) {
+  getParent(element: CapturerNode): CapturerNode | undefined {
     if (element.type === 'root') {
       return undefined
     }
@@ -726,12 +996,12 @@ export class CapturerManager {
     this.onDidChangeTreeDataEmitter.fire(undefined)
   }
 
-  refreshRoot(configId) {
+  refreshRoot(configId: string): void {
     this.updateViewBadge()
     this.onDidChangeTreeDataEmitter.fire(this.treeModel.getRootNode(configId))
   }
 
-  refreshEvent(configId, signature) {
+  refreshEvent(configId: string, signature: string): void {
     this.onDidChangeTreeDataEmitter.fire(
       this.treeModel.getEventNode(configId, signature)
     )
@@ -747,18 +1017,18 @@ export class CapturerManager {
     this.treeView.badge = toCapturerViewBadge(activeSessionCount)
   }
 
-  ensureRuntime(config) {
+  ensureRuntime(config: CapturerConfig): CapturerRuntime {
     const existing = this.runtimes.get(config.id)
     if (existing) {
       return existing
     }
-    const capturerOptions = {}
-    const capturer = (0, createCapturer)(capturerOptions)
-    const runtime = {
+    const capturerOptions: CapturerOptions = {}
+    const capturer = createCapturer(capturerOptions)
+    const runtime: CapturerRuntime = {
       config,
       capturer,
-      eventsBySignature: new Map(),
-      eventsById: new Map(),
+      eventsBySignature: new Map<string, CapturerEventSummary>(),
+      eventsById: new Map<string, CapturerEventSummary>(),
       unsubscribeDetected: capturer.on('eventDetected', (event) =>
         this.handleCapturerEvent(config.id, event)
       ),
@@ -766,7 +1036,10 @@ export class CapturerManager {
         this.handleCapturerEvent(config.id, event)
       ),
       monitorSubscriptions: [],
-      sourceAvailabilityByPath: new Map(),
+      sourceAvailabilityByPath: new Map<
+        string,
+        'checking' | 'present' | 'missing'
+      >(),
       lastChunkEndedWithLineBreak: true,
       processedBytes: 0,
       readiness: { sketchExists: false, hasCompileSummary: false },
@@ -775,7 +1048,7 @@ export class CapturerManager {
     return runtime
   }
 
-  handleCapturerEvent(configId, event) {
+  handleCapturerEvent(configId: string, event: CapturerEvent): void {
     const runtime = this.runtimes.get(configId)
     if (!runtime) {
       return
@@ -801,7 +1074,7 @@ export class CapturerManager {
     }
   }
 
-  async revealEventNode(node) {
+  async revealEventNode(node: CapturerEventNode): Promise<void> {
     if (!this.treeView) {
       return
     }
@@ -828,7 +1101,7 @@ export class CapturerManager {
     }
   }
 
-  removeSummaryBySignature(runtime, signature) {
+  removeSummaryBySignature(runtime: CapturerRuntime, signature: string): void {
     const removedSummary = runtime.eventsBySignature.get(signature)
     this.treeModel.removeEventNode(runtime.config.id, signature)
     runtime.eventsBySignature.delete(signature)
@@ -851,7 +1124,12 @@ export class CapturerManager {
     }
   }
 
-  resolveSourceAvailability(configId, runtime, filePath, sourceKind) {
+  resolveSourceAvailability(
+    configId: string,
+    runtime: CapturerRuntime,
+    filePath: string | undefined,
+    sourceKind: 'sketch' | 'library' | 'missing'
+  ): 'checking' | 'present' | 'missing' | undefined {
     if (!filePath || sourceKind !== 'library') {
       return undefined
     }
@@ -864,8 +1142,12 @@ export class CapturerManager {
     return 'checking'
   }
 
-  async probeSourceAvailability(configId, runtime, filePath) {
-    let next = 'present'
+  async probeSourceAvailability(
+    configId: string,
+    runtime: CapturerRuntime,
+    filePath: string
+  ): Promise<void> {
+    let next: 'present' | 'missing' = 'present'
     try {
       await fs.access(filePath)
     } catch {
@@ -875,7 +1157,7 @@ export class CapturerManager {
     this.refreshRoot(configId)
   }
 
-  async refreshReadiness(configId) {
+  async refreshReadiness(configId: string): Promise<void> {
     const runtime = this.runtimes.get(configId)
     if (!runtime) {
       return
@@ -895,7 +1177,7 @@ export class CapturerManager {
       selectedBoardFqbn: sketchRuntimeInfo?.selectedBoardFqbn,
       selectedPort: sketchRuntimeInfo?.selectedPort,
       configuredPortDetected: isPortDetected(
-        this.arduinoContext.boardsListWatcher?.detectedPorts,
+        this.arduinoContext.boardsListWatcher.detectedPorts,
         runtime.config.port
       ),
       workspaceRelativeSketchPath: workspaceRelativeSketchPath(
@@ -918,7 +1200,7 @@ export class CapturerManager {
     }
   }
 
-  async detachMonitor(runtime) {
+  async detachMonitor(runtime: CapturerRuntime): Promise<void> {
     this.flushRuntime(runtime.config.id, runtime)
     for (const disposable of runtime.monitorSubscriptions) {
       disposable.dispose()
@@ -939,7 +1221,7 @@ export class CapturerManager {
     }
   }
 
-  async disposeRuntime(runtime) {
+  async disposeRuntime(runtime: CapturerRuntime): Promise<void> {
     await this.detachMonitor(runtime)
     runtime.unsubscribeDetected()
     runtime.unsubscribeUpdated()
@@ -950,8 +1232,11 @@ export class CapturerManager {
     this.treeModel.clearConfig(runtime.config.id)
   }
 
-  async invokeMonitorMethod(monitor, methodName) {
-    const method = monitor[methodName]
+  async invokeMonitorMethod(
+    monitor: MonitorClientWithClose,
+    methodName: 'stop' | 'close'
+  ): Promise<void> {
+    const method = methodName === 'stop' ? monitor.stop : monitor.close
     if (typeof method !== 'function') {
       return
     }
@@ -962,7 +1247,10 @@ export class CapturerManager {
     }
   }
 
-  async resolveConfigId(target, placeholder) {
+  async resolveConfigId(
+    target: CapturerCommandTarget,
+    placeholder: string
+  ): Promise<string | undefined> {
     if (target?.type === 'root') {
       return target.configId
     }
@@ -983,8 +1271,10 @@ export class CapturerManager {
     return quickPickItem?.configId
   }
 
-  async pickReplayFile() {
-    const defaultPath = this.context.workspaceState.get(replayFileStateKey)
+  async pickReplayFile(): Promise<vscode.Uri[]> {
+    const defaultPath = this.context.workspaceState.get<string | undefined>(
+      replayFileStateKey
+    )
     const defaultUri = defaultPath
       ? vscode.Uri.file(path.dirname(defaultPath))
       : vscode.workspace.workspaceFolders?.[0]?.uri
@@ -1000,7 +1290,7 @@ export class CapturerManager {
     return selected ?? []
   }
 
-  flushRuntime(configId, runtime) {
+  flushRuntime(configId: string, runtime: CapturerRuntime): void {
     try {
       runtime.capturer.flush()
     } catch (err) {
@@ -1009,7 +1299,7 @@ export class CapturerManager {
     }
   }
 
-  scheduleIdleFlush(configId, runtime) {
+  scheduleIdleFlush(configId: string, runtime: CapturerRuntime): void {
     this.clearIdleFlushTimer(runtime)
     runtime.idleFlushTimer = setTimeout(() => {
       runtime.idleFlushTimer = undefined
@@ -1020,14 +1310,18 @@ export class CapturerManager {
     }, idleFlushDelayMs)
   }
 
-  clearIdleFlushTimer(runtime) {
+  clearIdleFlushTimer(runtime: CapturerRuntime): void {
     if (runtime.idleFlushTimer) {
       clearTimeout(runtime.idleFlushTimer)
       runtime.idleFlushTimer = undefined
     }
   }
 
-  startAutoDecode(configId, runtime, summary) {
+  startAutoDecode(
+    configId: string,
+    runtime: CapturerRuntime,
+    summary: CapturerEventSummary
+  ): void {
     if (
       summary.decodeState === 'decoding' ||
       summary.decodeState === 'decoded' ||
@@ -1051,7 +1345,7 @@ export class CapturerManager {
             trackDurationAs: 'decode',
           }
         )
-        summary.lastDecodeHeavyVarsCount = (0, countHeavyVars)(result)
+        summary.lastDecodeHeavyVarsCount = countHeavyVars(result)
         summary.decodedResult = result
         summary.decodeState = 'decoded'
         summary.decodeError = undefined
@@ -1087,11 +1381,18 @@ export class CapturerManager {
     })()
   }
 
-  async decodeEventSummary(runtime, summary, options) {
+  async decodeEventSummary(
+    runtime: CapturerRuntime,
+    summary: CapturerEventSummary,
+    options: DecodeEventSummaryOptions
+  ): Promise<{
+    params: DecodeParams
+    result: CapturerDecodedEventPayload['result']
+  }> {
     const decodeStartAt = Date.now()
     try {
       const params = await this.resolveDecodeParams(runtime)
-      const decoded = await (0, decode)(params, summary.rawText, {
+      const decoded = await decode(params, summary.rawText, {
         includeFrameVars: options.includeFrameVars,
       })
       if (Array.isArray(decoded)) {
@@ -1105,7 +1406,7 @@ export class CapturerManager {
     }
   }
 
-  async resolveDecodeParams(runtime) {
+  async resolveDecodeParams(runtime: CapturerRuntime): Promise<DecodeParams> {
     if (runtime.decodeParams) {
       return runtime.decodeParams
     }
@@ -1120,14 +1421,14 @@ export class CapturerManager {
       )
     }
     const configuredSketch = withConfiguredFqbn(sketch, runtime.config.fqbn)
+    const fallbackCompileSummary = runtime.readiness.buildPath
+      ? ({
+          buildPath: runtime.readiness.buildPath,
+        } as SketchFolder['compileSummary'])
+      : undefined
     const compileSummary =
-      configuredSketch.compileSummary ??
-      (runtime.readiness.buildPath
-        ? {
-            buildPath: runtime.readiness.buildPath,
-          }
-        : undefined)
-    const params = await (0, createDecodeParams)({
+      configuredSketch.compileSummary ?? fallbackCompileSummary
+    const params = await createDecodeParams({
       compileSummary,
       board: configuredSketch.board,
       sketchPath: runtime.config.sketchPath,
@@ -1136,11 +1437,20 @@ export class CapturerManager {
     return params
   }
 }
-export function registerCapturer(context, arduinoContext, options = {}) {
-  const toDispose = []
-  if (!(0, isBoardLabContextExt)(arduinoContext)) {
+export function registerCapturer(
+  context: vscode.ExtensionContext,
+  arduinoContext: ArduinoContext,
+  options: {
+    evaluateDecodedEvent?: EvaluateDecodedEvent
+    onDecodedEvent?: OnDecodedEvent
+    onRemovedDecodedEvent?: OnRemovedDecodedEvent
+    onRemovedCapturer?: OnRemovedCapturer
+  } = {}
+): vscode.Disposable {
+  const toDispose: vscode.Disposable[] = []
+  if (!isBoardLabContextExt(arduinoContext)) {
     vscode.window.showInformationMessage(
-      'The current BoardLab context does expose the experimental monitor feature. Update BoardLab to the latest version and reload Visual Studio Code.'
+      'The current BoardLab context does not expose the required monitor and picker APIs. Update BoardLab to the latest version and reload Visual Studio Code.'
     )
     return new vscode.Disposable(() => {
       // noop
@@ -1183,49 +1493,70 @@ export function registerCapturer(context, arduinoContext, options = {}) {
     vscode.commands.registerCommand(capturerCreateCommandId, () =>
       manager.addUsingBoardLabPickers()
     ),
-    vscode.commands.registerCommand(capturerRemoveCommandId, (target) =>
-      manager.removeConfig(target)
+    vscode.commands.registerCommand(
+      capturerRemoveCommandId,
+      (target: CapturerNode | undefined) => manager.removeConfig(target)
     ),
-    vscode.commands.registerCommand(capturerStartCommandId, (target) =>
-      manager.startCapturer(target)
+    vscode.commands.registerCommand(
+      capturerStartCommandId,
+      (target: CapturerNode | undefined) => manager.startCapturer(target)
     ),
-    vscode.commands.registerCommand(capturerStopCommandId, (target) =>
-      manager.stopCapturer(target)
+    vscode.commands.registerCommand(
+      capturerStopCommandId,
+      (target: CapturerNode | undefined) => manager.stopCapturer(target)
     ),
-    vscode.commands.registerCommand(capturerRefreshCommandId, (target) =>
-      manager.refresh(target)
+    vscode.commands.registerCommand(
+      capturerRefreshCommandId,
+      (target: CapturerNode | undefined) => manager.refresh(target)
     ),
-    vscode.commands.registerCommand(capturerCompileSketchCommandId, (target) =>
-      manager.compileSketch(target)
+    vscode.commands.registerCommand(
+      capturerQuickFixCommandId,
+      (target: CapturerNode | undefined, action: string | undefined) =>
+        manager.quickFix(target, action)
+    ),
+    vscode.commands.registerCommand(
+      capturerQuickFixSyncSketchBoardCommandId,
+      (target: CapturerNode | undefined) =>
+        manager.quickFix(target, 'sync-sketch-fqbn')
+    ),
+    vscode.commands.registerCommand(
+      capturerCompileSketchCommandId,
+      (target: CapturerNode | undefined) => manager.compileSketch(target)
     ),
     vscode.commands.registerCommand(
       capturerCompileSketchDebugCommandId,
-      (target) => manager.compileSketchWithDebugSymbols(target)
+      (target: CapturerNode | undefined) =>
+        manager.compileSketchWithDebugSymbols(target)
     ),
-    vscode.commands.registerCommand(capturerCopyToClipboardCommandId, (arg) =>
-      manager.copyToClipboard(arg)
+    vscode.commands.registerCommand(
+      capturerCopyToClipboardCommandId,
+      (arg: unknown) => manager.copyToClipboard(arg)
     ),
-    vscode.commands.registerCommand(dumpCapturerStateCommandId, (target) =>
-      manager.dumpCapturerState(target)
+    vscode.commands.registerCommand(
+      dumpCapturerStateCommandId,
+      (target: CapturerNode | undefined) => manager.dumpCapturerState(target)
     ),
-    vscode.commands.registerCommand(capturerReplayCrashCommandId, (target) =>
-      manager.replayEvent(target)
+    vscode.commands.registerCommand(
+      capturerReplayCrashCommandId,
+      (target: CapturerNode | undefined) => manager.replayEvent(target)
     ),
-    vscode.commands.registerCommand(capturerDeleteEventCommandId, (target) =>
-      manager.deleteEvent(target)
+    vscode.commands.registerCommand(
+      capturerDeleteEventCommandId,
+      (target: CapturerNode | undefined) => manager.deleteEvent(target)
     ),
     vscode.commands.registerCommand(
       capturerDeleteAllEventsCommandId,
-      (target) => manager.deleteAllEvents(target)
+      (target: CapturerNode | undefined) => manager.deleteAllEvents(target)
     ),
-    vscode.commands.registerCommand(capturerShowEventCommandId, (target) =>
-      manager.showEvent(target)
+    vscode.commands.registerCommand(
+      capturerShowEventCommandId,
+      (target: CapturerNode | undefined) => manager.showEvent(target)
     )
   )
   return vscode.Disposable.from(...toDispose)
 }
-function toRuntimeIcon(runtime) {
-  const problems = (0, collectRuntimeProblems)(runtime)
+function toRuntimeIcon(runtime: CapturerRuntime): vscode.ThemeIcon {
+  const problems = collectRuntimeProblems(runtime)
   if (problems.some((problem) => problem.severity === 'error')) {
     return new vscode.ThemeIcon('error')
   }
@@ -1235,54 +1566,27 @@ function toRuntimeIcon(runtime) {
   if (runtime.monitorState === 'running') {
     return new vscode.ThemeIcon('pulse')
   }
-  if (
-    runtime.monitorState === 'suspended' &&
-    (0, isRuntimeConnected)(runtime)
-  ) {
+  if (runtime.monitorState === 'suspended' && isRuntimeConnected(runtime)) {
     return new vscode.ThemeIcon('sync~spin')
   }
-  if ((0, isReadyToRecord)(runtime, problems)) {
+  if (isReadyToRecord(runtime, problems)) {
     return new vscode.ThemeIcon('pass')
   }
   return new vscode.ThemeIcon('error')
 }
-function toEventDescription(summary) {
-  const createdLabel = `Created ${(0, formatLocalTimestamp)(summary.createdAt)}`
+function toEventDescription(summary: CapturerEventSummary): string {
+  const createdLabel = `Created ${formatLocalTimestamp(summary.createdAt)}`
   if (!summary.captureSessionLabel) {
     return createdLabel
   }
   return `${createdLabel} | ${summary.captureSessionLabel}`
 }
-function toDraftFromSketch(sketch) {
-  if (!sketch?.sketchPath) {
-    return undefined
-  }
-  const fqbn = sketch.board?.fqbn
-  const port = sketch.port
-  if (!fqbn || !isPortIdentifierLike(port)) {
-    return undefined
-  }
-  return {
-    sketchPath: sketch.sketchPath,
-    fqbn,
-    port: {
-      protocol: port.protocol,
-      address: port.address,
-    },
-  }
-}
-function isPortIdentifierLike(arg) {
-  return (
-    typeof arg === 'object' &&
-    arg !== null &&
-    typeof arg.protocol === 'string' &&
-    typeof arg.address === 'string'
-  )
-}
-function buildCapturerId(config) {
+function buildCapturerId(config: CapturerConfigDraft): string {
   return `${config.port.protocol}://${config.port.address}|${config.fqbn}|${path.normalize(config.sketchPath)}`
 }
-function validateCapturerConfig(value) {
+function validateCapturerConfig(
+  value: Partial<CapturerConfigDraft>
+): CapturerConfigValidationResult {
   if (!isPortIdentifierLike(value.port)) {
     return {
       ok: false,
@@ -1305,7 +1609,7 @@ function validateCapturerConfig(value) {
     }
   }
   try {
-    const fqbn = new FQBN(value.fqbn).sanitize()
+    const fqbn = new FQBN(value.fqbn)
     if (!supportedCapturerArchitectures.has(fqbn.arch)) {
       return {
         ok: false,
@@ -1330,10 +1634,7 @@ function validateCapturerConfig(value) {
     }
   }
 }
-function pathEquals(left, right) {
-  return path.normalize(left) === path.normalize(right)
-}
-async function pathExists(targetPath) {
+async function pathExists(targetPath: string): Promise<boolean> {
   try {
     await fs.access(targetPath)
     return true
@@ -1341,8 +1642,11 @@ async function pathExists(targetPath) {
     return false
   }
 }
-async function resolveElfIdentity(elfPath, previous) {
-  let stats
+async function resolveElfIdentity(
+  elfPath: string,
+  previous?: ElfIdentity
+): Promise<ElfIdentity | undefined> {
+  let stats: Awaited<ReturnType<typeof fs.stat>>
   try {
     stats = await fs.stat(elfPath)
   } catch {
@@ -1361,10 +1665,10 @@ async function resolveElfIdentity(elfPath, previous) {
   ) {
     return previous
   }
-  let sha256
+  let sha256: string
   try {
     const content = await fs.readFile(elfPath)
-    sha256 = (0, createHash)('sha256').update(content).digest('hex')
+    sha256 = createHash('sha256').update(content).digest('hex')
   } catch {
     return undefined
   }
@@ -1378,7 +1682,10 @@ async function resolveElfIdentity(elfPath, previous) {
     sessionId: `${sha256Short}-${mtimeMs}`,
   }
 }
-function isPortDetected(detectedPorts, port) {
+function isPortDetected(
+  detectedPorts: unknown,
+  port: CapturerConfig['port'] | undefined
+): boolean | undefined {
   if (!port) {
     return undefined
   }
@@ -1388,14 +1695,16 @@ function isPortDetected(detectedPorts, port) {
   }
   return detected.some((candidate) => arePortsEqual(candidate, port))
 }
-function extractDetectedPorts(detectedPorts) {
+function extractDetectedPorts(
+  detectedPorts: unknown
+): CapturerConfig['port'][] | undefined {
   if (!detectedPorts || typeof detectedPorts !== 'object') {
     return undefined
   }
   const entries = Array.isArray(detectedPorts)
     ? detectedPorts
     : Object.values(detectedPorts)
-  const ports = []
+  const ports: CapturerConfig['port'][] = []
   for (const entry of entries) {
     if (isPortIdentifierLike(entry)) {
       ports.push({ protocol: entry.protocol, address: entry.address })
@@ -1408,18 +1717,23 @@ function extractDetectedPorts(detectedPorts) {
   }
   return ports
 }
-function arePortsEqual(left, right) {
+function arePortsEqual(
+  left: CapturerConfig['port'],
+  right: CapturerConfig['port']
+): boolean {
   return left.protocol === right.protocol && left.address === right.address
 }
-async function loadCompileBuildOptions(buildPath) {
+async function loadCompileBuildOptions(
+  buildPath: string
+): Promise<CompileBuildOptionsInfo | undefined> {
   const optionsPath = path.join(buildPath, 'build.options.json')
-  let rawJson
+  let rawJson: string
   try {
     rawJson = await fs.readFile(optionsPath, 'utf8')
   } catch {
     return undefined
   }
-  let parsed
+  let parsed: unknown
   try {
     parsed = JSON.parse(rawJson)
   } catch {
@@ -1451,7 +1765,10 @@ async function loadCompileBuildOptions(buildPath) {
     flags: collectBuildFlagEntries(parsed),
   }
 }
-function pickNonEmptyString(record, key) {
+function pickNonEmptyString(
+  record: Record<string, unknown>,
+  key: string
+): string | undefined {
   const value = record[key]
   if (typeof value !== 'string') {
     return undefined
@@ -1459,7 +1776,7 @@ function pickNonEmptyString(record, key) {
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
 }
-function collectBuildFlagEntries(record) {
+function collectBuildFlagEntries(record: Record<string, unknown>): string[] {
   return Object.entries(record)
     .flatMap(([key, value]) => {
       if (typeof value !== 'string') {
@@ -1473,23 +1790,38 @@ function collectBuildFlagEntries(record) {
     })
     .sort((left, right) => left.localeCompare(right))
 }
-function isRecord(value) {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
-async function findSketchRuntimeInfo(config, arduinoContext) {
+async function findSketchRuntimeInfo(
+  config: CapturerConfig,
+  arduinoContext: ArduinoContextWithBoardLab
+): Promise<
+  Pick<
+    CapturerReadiness,
+    | 'hasCompileSummary'
+    | 'elfPath'
+    | 'buildPath'
+    | 'buildOptions'
+    | 'boardName'
+    | 'selectedBoardName'
+    | 'selectedBoardFqbn'
+    | 'selectedPort'
+  >
+> {
   const sketchName = path.basename(config.sketchPath)
-  const matchingSketch = arduinoContext.openedSketches.find((sketch) =>
-    pathEquals(sketch.sketchPath, config.sketchPath)
+  const matchingSketch = arduinoContext.openedSketches.find(
+    (sketch: SketchFolder) => pathEquals(sketch.sketchPath, config.sketchPath)
   )
   const compileSummaryBuildPath =
     typeof matchingSketch?.compileSummary?.buildPath === 'string'
       ? matchingSketch.compileSummary.buildPath
       : undefined
   const compileSummaryElfPath = compileSummaryBuildPath
-    ? await (0, findElfPath)(sketchName, compileSummaryBuildPath)
+    ? await findElfPath(sketchName, compileSummaryBuildPath)
     : undefined
   const fallbackBuild = !compileSummaryBuildPath
-    ? await (0, resolveBuildPathFromSketchPath)(config.sketchPath, sketchName, {
+    ? await resolveBuildPathFromSketchPath(config.sketchPath, sketchName, {
         sketchRealPath: await resolveRealPath(config.sketchPath),
       })
     : undefined
@@ -1513,7 +1845,7 @@ async function findSketchRuntimeInfo(config, arduinoContext) {
         : undefined,
     selectedBoardFqbn:
       typeof matchingSketch?.board?.fqbn === 'string'
-        ? (0, sanitizeFqbn)(matchingSketch.board.fqbn)
+        ? sanitizeFqbn(matchingSketch.board.fqbn)
         : undefined,
     selectedPort: isPortIdentifierLike(matchingSketch?.port)
       ? {
@@ -1523,21 +1855,26 @@ async function findSketchRuntimeInfo(config, arduinoContext) {
       : undefined,
   }
 }
-async function resolveRealPath(targetPath) {
+async function resolveRealPath(
+  targetPath: string
+): Promise<string | undefined> {
   try {
     return await fs.realpath(targetPath)
   } catch {
     return undefined
   }
 }
-function resolveSketchBoardName(sketch, engineFqbn) {
+function resolveSketchBoardName(
+  sketch: Pick<SketchFolder, 'board'> | undefined,
+  engineFqbn: string
+): string | undefined {
   const name = sketch?.board?.name
   const sketchFqbn = sketch?.board?.fqbn
   if (typeof name !== 'string' || typeof sketchFqbn !== 'string') {
     return undefined
   }
-  const sanitizedSketchFqbn = (0, sanitizeFqbn)(sketchFqbn)
-  const sanitizedEngineFqbn = (0, sanitizeFqbn)(engineFqbn)
+  const sanitizedSketchFqbn = sanitizeFqbn(sketchFqbn)
+  const sanitizedEngineFqbn = sanitizeFqbn(engineFqbn)
   if (!sanitizedSketchFqbn || !sanitizedEngineFqbn) {
     return undefined
   }
@@ -1546,7 +1883,10 @@ function resolveSketchBoardName(sketch, engineFqbn) {
   }
   return name
 }
-function toEventSummary(event, runtime) {
+function toEventSummary(
+  event: CapturerEvent,
+  runtime?: CapturerRuntime
+): CapturerEventSummary {
   const captureSession = runtime?.elfIdentity
   return {
     eventId: event.id,
@@ -1559,7 +1899,7 @@ function toEventSummary(event, runtime) {
     createdAt: event.firstSeenAt,
     captureSessionId: captureSession?.sessionId,
     captureSessionLabel: captureSession
-      ? `${captureSession.sha256Short} @ ${(0, formatLocalTimestamp)(captureSession.mtimeMs)}`
+      ? `${captureSession.sha256Short} @ ${formatLocalTimestamp(captureSession.mtimeMs)}`
       : undefined,
     count: event.count,
     firstSeenAt: event.firstSeenAt,
@@ -1570,13 +1910,16 @@ function toEventSummary(event, runtime) {
     decodeState: 'detected',
   }
 }
-function toDecodedEventMeta(configId, summary) {
+function toDecodedEventMeta(
+  configId: string,
+  summary: CapturerEventSummary
+): CapturerDecodedEventPayload['meta'] {
   return {
     key: `${configId}:${summary.signature}`,
     configId,
     signature: summary.signature,
     eventId: summary.eventId,
-    label: (0, eventDisplayLabel)(summary),
+    label: eventDisplayLabel(summary),
     reason: summary.reason,
     createdAt: summary.createdAt,
     captureSessionId: summary.captureSessionId,
@@ -1584,7 +1927,7 @@ function toDecodedEventMeta(configId, summary) {
   }
 }
 
-function shouldIgnoreCapturerEvent(event) {
+function shouldIgnoreCapturerEvent(event: CapturerEvent): boolean {
   if (hasDecodeAnchors(event)) {
     return false
   }
@@ -1592,10 +1935,7 @@ function shouldIgnoreCapturerEvent(event) {
   return nonEmptyLines.length <= 1
 }
 
-function hasDecodeAnchors(event) {
-  if (!event || typeof event !== 'object') {
-    return false
-  }
+function hasDecodeAnchors(event: CapturerEvent): boolean {
   const programCounter = event?.lightweight?.programCounter
   if (typeof programCounter === 'number' && Number.isFinite(programCounter)) {
     return true
@@ -1607,7 +1947,7 @@ function hasDecodeAnchors(event) {
   return Array.isArray(event.fastFrames) && event.fastFrames.length > 0
 }
 
-function collectNonEmptyEventLines(event) {
+function collectNonEmptyEventLines(event: CapturerEvent): string[] {
   if (!Array.isArray(event?.lines)) {
     return []
   }
@@ -1616,7 +1956,11 @@ function collectNonEmptyEventLines(event) {
   )
 }
 
-function upsertEventSummary(cache, event, runtime) {
+function upsertEventSummary(
+  cache: Map<string, CapturerEventSummary>,
+  event: CapturerEvent,
+  runtime?: CapturerRuntime
+): CapturerEventSummary {
   const next = toEventSummary(event, runtime)
   const previous = cache.get(event.signature)
   if (!previous) {
@@ -1637,18 +1981,23 @@ function upsertEventSummary(cache, event, runtime) {
   cache.set(event.signature, previous)
   return previous
 }
-function loadPersistedConfigs(values) {
+function loadPersistedConfigs(values: unknown[]): CapturerConfig[] {
   return values
     .map((raw) =>
       validateCapturerConfig(typeof raw === 'object' && raw !== null ? raw : {})
     )
-    .filter((result) => result.ok)
+    .filter(
+      (
+        result
+      ): result is Extract<CapturerConfigValidationResult, { ok: true }> =>
+        result.ok
+    )
     .map(({ value }) => ({
       id: buildCapturerId(value),
       ...value,
     }))
 }
-function splitReplaySegments(rawText) {
+function splitReplaySegments(rawText: string): string[] {
   const normalized = rawText.replace(/\r\n/g, '\n')
   if (splitMarker.test(normalized)) {
     return normalized
@@ -1658,7 +2007,10 @@ function splitReplaySegments(rawText) {
   }
   return [normalized]
 }
-function isReadinessEqual(left, right) {
+function isReadinessEqual(
+  left: CapturerReadiness,
+  right: CapturerReadiness
+): boolean {
   return (
     left.sketchExists === right.sketchExists &&
     left.hasCompileSummary === right.hasCompileSummary &&
@@ -1673,7 +2025,10 @@ function isReadinessEqual(left, right) {
     left.workspaceRelativeSketchPath === right.workspaceRelativeSketchPath
   )
 }
-function arePortsEqualOrUndefined(left, right) {
+function arePortsEqualOrUndefined(
+  left: CapturerReadiness['selectedPort'],
+  right: CapturerReadiness['selectedPort']
+): boolean {
   if (!left && !right) {
     return true
   }
@@ -1682,7 +2037,10 @@ function arePortsEqualOrUndefined(left, right) {
   }
   return arePortsEqual(left, right)
 }
-function isBuildOptionsEqual(left, right) {
+function isBuildOptionsEqual(
+  left: CompileBuildOptionsInfo | undefined,
+  right: CompileBuildOptionsInfo | undefined
+): boolean {
   if (!left && !right) {
     return true
   }
@@ -1700,7 +2058,10 @@ function isBuildOptionsEqual(left, right) {
     areStringArraysEqual(left.flags, right.flags)
   )
 }
-function isElfIdentityEqual(left, right) {
+function isElfIdentityEqual(
+  left: ElfIdentity | undefined,
+  right: ElfIdentity | undefined
+): boolean {
   if (!left && !right) {
     return true
   }
@@ -1715,7 +2076,7 @@ function isElfIdentityEqual(left, right) {
     left.sessionId === right.sessionId
   )
 }
-function areStringArraysEqual(left, right) {
+function areStringArraysEqual(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
     return false
   }
@@ -1726,19 +2087,23 @@ function areStringArraysEqual(left, right) {
   }
   return true
 }
-function chunkEndsWithLineBreak(chunk) {
+function chunkEndsWithLineBreak(chunk: Uint8Array): boolean {
   if (chunk.length === 0) {
     return false
   }
   const last = chunk[chunk.length - 1]
   return last === 0x0a || last === 0x0d
 }
-function resetTransferMetrics(runtime) {
+function resetTransferMetrics(runtime: TransferRuntime): void {
   runtime.processedBytes = 0
   runtime.processedFirstAt = undefined
   runtime.processedLastAt = undefined
 }
-function recordTransfer(runtime, byteLength, atMs) {
+function recordTransfer(
+  runtime: TransferRuntime,
+  byteLength: number,
+  atMs: number
+): void {
   if (byteLength <= 0) {
     return
   }
@@ -1748,7 +2113,10 @@ function recordTransfer(runtime, byteLength, atMs) {
   }
   runtime.processedLastAt = atMs
 }
-function withConfiguredFqbn(sketch, fqbn) {
+function withConfiguredFqbn(
+  sketch: DecodeSketchLike,
+  fqbn: string
+): DecodeSketchLike {
   if (!sketch.board || typeof sketch.board !== 'object') {
     return sketch
   }
@@ -1760,13 +2128,16 @@ function withConfiguredFqbn(sketch, fqbn) {
     },
   }
 }
-function toFrameUri(filePath, sketchPath) {
+function toFrameUri(filePath: string, sketchPath: string): vscode.Uri {
   if (classifyDecodedSource(filePath, sketchPath) === 'library') {
-    return (0, toReadonlyLibraryUri)(filePath)
+    return toReadonlyLibraryUri(filePath)
   }
   return vscode.Uri.file(filePath)
 }
-function classifyDecodedSource(filePath, sketchPath) {
+function classifyDecodedSource(
+  filePath: string | undefined,
+  sketchPath: string | undefined
+): 'sketch' | 'library' | 'missing' {
   if (!filePath || !filePath.trim()) {
     return 'missing'
   }
@@ -1775,8 +2146,8 @@ function classifyDecodedSource(filePath, sketchPath) {
   }
   return isPathInside(sketchPath, filePath) ? 'sketch' : 'library'
 }
-function isPathInside(parentPath, candidatePath) {
-  const normalize = (value) =>
+function isPathInside(parentPath: string, candidatePath: string): boolean {
+  const normalize = (value: string): string =>
     process.platform === 'win32'
       ? path.resolve(value).toLowerCase()
       : path.resolve(value)
@@ -1788,7 +2159,7 @@ function isPathInside(parentPath, candidatePath) {
     (!relative.startsWith('..') && !path.isAbsolute(relative))
   )
 }
-function workspaceRelativeSketchPath(sketchPath) {
+function workspaceRelativeSketchPath(sketchPath: string): string | undefined {
   const workspaceFolder = vscode.workspace.workspaceFolders?.find((folder) => {
     const relative = path.relative(folder.uri.fsPath, sketchPath)
     return !relative.startsWith('..') && !path.isAbsolute(relative)
@@ -1799,7 +2170,9 @@ function workspaceRelativeSketchPath(sketchPath) {
   return path.relative(workspaceFolder.uri.fsPath, sketchPath)
 }
 
-function countActiveCaptureSessions(runtimes) {
+function countActiveCaptureSessions(
+  runtimes: Iterable<CapturerRuntime>
+): number {
   let count = 0
   for (const runtime of runtimes) {
     if (runtime.monitor && runtime.monitorState !== 'disconnected') {
@@ -1809,7 +2182,9 @@ function countActiveCaptureSessions(runtimes) {
   return count
 }
 
-function toCapturerViewBadge(activeSessionCount) {
+function toCapturerViewBadge(
+  activeSessionCount: number
+): vscode.ViewBadge | undefined {
   if (activeSessionCount <= 0) {
     return undefined
   }
@@ -1819,7 +2194,7 @@ function toCapturerViewBadge(activeSessionCount) {
   }
 }
 
-function toCapturerViewBadgeTooltip(activeSessionCount) {
+function toCapturerViewBadgeTooltip(activeSessionCount: number): string {
   const noun = activeSessionCount === 1 ? 'session' : 'sessions'
   return `${activeSessionCount} active crash capture ${noun}`
 }
@@ -1838,6 +2213,8 @@ export const __tests = {
   isRecord,
   resolveSketchBoardName,
   toEventSummary,
+  toDraftFromSketch,
+  resolveConfiguredFqbn,
   shouldIgnoreCapturerEvent,
   resolveElfIdentity,
   upsertEventSummary,

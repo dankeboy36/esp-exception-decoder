@@ -117,8 +117,19 @@ export function resolveRootDescription(runtime: RuntimeLike): string {
     if (problems.some((problem) => problem.code === 'not-compiled')) {
       return 'Not compiled'
     }
-    if (problems.some((problem) => problem.code.startsWith('fqbn-mismatch'))) {
-      return 'FQBN mismatch'
+    if (
+      problems.some(
+        (problem) => problem.code === 'fqbn-mismatch-selected-engine'
+      )
+    ) {
+      return 'Sketch FQBN mismatch'
+    }
+    if (
+      problems.some(
+        (problem) => problem.code === 'fqbn-mismatch-selected-build'
+      )
+    ) {
+      return 'Build FQBN mismatch'
     }
     return problems[0].message
   }
@@ -133,28 +144,93 @@ export function resolveRootDescription(runtime: RuntimeLike): string {
 
 export function toRootLabel(runtime: RuntimeLike): string {
   const sketchName = path.basename(runtime.config.sketchPath)
-  const boardName =
-    runtime.readiness.boardName ?? runtime.readiness.selectedBoardName
-  if (!boardName) {
+  const boardLabel =
+    runtime.readiness.boardName ??
+    // TODO: add new extension API to lookup the board via FQBN
+    resolveCapturerBoardId(runtime.config.fqbn)
+  if (!boardLabel) {
     return `${runtime.config.port.address} · ${sketchName}`
   }
-  return `${runtime.config.port.address} · ${sketchName} · ${boardName}`
+  return `${runtime.config.port.address} · ${sketchName} · ${boardLabel}`
 }
 
 export function rootContextValue(runtime: RuntimeLike): string {
   const hasEvents = runtime.eventsBySignature.size > 0
+  const problems = collectRuntimeProblems(runtime)
+  const quickFixKind = resolveRuntimeQuickFixKind(runtime, problems)
   if (runtime.monitor && runtime.monitorState !== 'disconnected') {
+    if (quickFixKind === 'sync-sketch-fqbn') {
+      return hasEvents
+        ? 'espCapturerRootCapturingFixableSyncHasEvents'
+        : 'espCapturerRootCapturingFixableSync'
+    }
+    if (quickFixKind === 'compile') {
+      return hasEvents
+        ? 'espCapturerRootCapturingFixableCompileHasEvents'
+        : 'espCapturerRootCapturingFixableCompile'
+    }
     return hasEvents
       ? 'espCapturerRootCapturingHasEvents'
       : 'espCapturerRootCapturing'
   }
-  const problems = collectRuntimeProblems(runtime)
   if (isReadyToRecord(runtime, problems)) {
     return hasEvents ? 'espCapturerRootReadyHasEvents' : 'espCapturerRootReady'
+  }
+  if (quickFixKind === 'sync-sketch-fqbn') {
+    return hasEvents
+      ? 'espCapturerRootStoppedFixableSyncHasEvents'
+      : 'espCapturerRootStoppedFixableSync'
+  }
+  if (quickFixKind === 'compile') {
+    return hasEvents
+      ? 'espCapturerRootStoppedFixableCompileHasEvents'
+      : 'espCapturerRootStoppedFixableCompile'
   }
   return hasEvents
     ? 'espCapturerRootStoppedHasEvents'
     : 'espCapturerRootStopped'
+}
+
+export function hasRuntimeQuickFix(
+  runtime: RuntimeLike,
+  problems: RuntimeProblem[] = collectRuntimeProblems(runtime)
+): boolean {
+  return Boolean(resolveRuntimeQuickFixKind(runtime, problems))
+}
+
+function resolveRuntimeQuickFixKind(
+  runtime: RuntimeLike,
+  problems: RuntimeProblem[] = collectRuntimeProblems(runtime)
+): 'sync-sketch-fqbn' | 'compile' | undefined {
+  const hasSketchFqbnMismatch = problems.some(
+    (problem) => problem.code === 'fqbn-mismatch-selected-engine'
+  )
+  if (hasSketchFqbnMismatch) {
+    return 'sync-sketch-fqbn'
+  }
+  const hasBuildFqbnMismatch = problems.some(
+    (problem) => problem.code === 'fqbn-mismatch-selected-build'
+  )
+  return !runtime.readiness.hasCompileSummary ||
+    !runtime.readiness.elfPath ||
+    hasBuildFqbnMismatch
+    ? 'compile'
+    : undefined
+}
+
+function resolveCapturerBoardId(fqbnValue: string): string | undefined {
+  const sanitized = sanitizeFqbn(fqbnValue)
+  if (!sanitized) {
+    return undefined
+  }
+  try {
+    const fqbn = new FQBN(sanitized)
+    return typeof fqbn.boardId === 'string' && fqbn.boardId.length > 0
+      ? fqbn.boardId
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export function eventContextValue(
@@ -237,14 +313,14 @@ export function collectRuntimeProblems(runtime: RuntimeLike): RuntimeProblem[] {
     problems.push({
       severity: 'warning',
       code: 'fqbn-mismatch-selected-engine',
-      message: 'Selected FQBN differs from configured FQBN',
+      message: 'Selected sketch FQBN differs from capturer FQBN',
     })
   }
   if (isSelectedFqbnDifferentFromBuild(runtime)) {
     problems.push({
       severity: 'warning',
       code: 'fqbn-mismatch-selected-build',
-      message: 'Selected FQBN differs from build FQBN',
+      message: 'Build FQBN differs from capturer FQBN',
     })
   }
 
@@ -298,13 +374,13 @@ function isSelectedFqbnDifferentFromEngine(runtime: RuntimeLike): boolean {
 }
 
 function isSelectedFqbnDifferentFromBuild(runtime: RuntimeLike): boolean {
-  const selectedFqbn = runtime.readiness.selectedBoardFqbn
-  if (!selectedFqbn) {
+  const engineFqbn = sanitizeFqbn(runtime.config.fqbn)
+  if (!engineFqbn) {
     return false
   }
   const buildFqbn = sanitizeFqbn(runtime.readiness.buildOptions?.fqbn ?? '')
   if (!buildFqbn) {
     return false
   }
-  return selectedFqbn !== buildFqbn
+  return engineFqbn !== buildFqbn
 }

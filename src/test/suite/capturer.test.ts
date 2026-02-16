@@ -129,6 +129,17 @@ describe('capturer', () => {
     })
     assert.strictEqual(valid.ok, true)
     assert.strictEqual(valid.ok && valid.value.fqbn, 'esp32:esp32:esp32c3')
+
+    const validWithOptions = __tests.validateCapturerConfig({
+      port: { protocol: 'serial', address: '/dev/mock0' },
+      fqbn: 'esp32:esp32:esp32da:CPUFreq=240,PartitionScheme=huge_app',
+      sketchPath: '/tmp/sketch-a',
+    })
+    assert.strictEqual(validWithOptions.ok, true)
+    assert.strictEqual(
+      validWithOptions.ok && validWithOptions.value.fqbn,
+      'esp32:esp32:esp32da:CPUFreq=240,PartitionScheme=huge_app'
+    )
   })
 
   it('covers config/runtime helper utilities', () => {
@@ -170,6 +181,26 @@ describe('capturer', () => {
         'esp32:esp32:esp32c3'
       ),
       undefined
+    )
+    assert.strictEqual(
+      __tests.resolveConfiguredFqbn({
+        configOptions: 'CPUFreq=240,PartitionScheme=huge_app',
+        board: { fqbn: 'esp32:esp32:esp32da' },
+      }),
+      'esp32:esp32:esp32da:CPUFreq=240,PartitionScheme=huge_app'
+    )
+    assert.deepStrictEqual(
+      __tests.toDraftFromSketch({
+        sketchPath: '/tmp/sketch-with-options',
+        configOptions: 'CPUFreq=240,PartitionScheme=huge_app',
+        board: { fqbn: 'esp32:esp32:esp32da' },
+        port: { protocol: 'serial', address: '/dev/ttyUSB0' },
+      }),
+      {
+        sketchPath: '/tmp/sketch-with-options',
+        fqbn: 'esp32:esp32:esp32da:CPUFreq=240,PartitionScheme=huge_app',
+        port: { protocol: 'serial', address: '/dev/ttyUSB0' },
+      }
     )
   })
 
@@ -595,7 +626,8 @@ describe('capturer', () => {
       assert.ok(firstEventItem.tooltip instanceof vscode.MarkdownString)
       const firstEventTooltip = firstEventItem.tooltip.value
       assert.ok(firstEventTooltip.includes('- Error:'))
-      assert.ok(firstEventTooltip.includes('- Board:'))
+      assert.ok(firstEventTooltip.includes('- Capturer Board:'))
+      assert.ok(firstEventTooltip.includes('- Sketch Board:'))
       assert.ok(firstEventTooltip.includes('- ELF Path:'))
       assert.ok(firstEventTooltip.includes('#### Crash Summary'))
       assert.ok(firstEventTooltip.includes('#### Build Context'))
@@ -608,7 +640,7 @@ describe('capturer', () => {
     }
   })
 
-  it('shows problems and compile actions when sketch is not compiled', async () => {
+  it('shows problems when sketch is not compiled', async () => {
     const sketchPath = await mkdtempInSystemTmp('capturer-not-compiled-')
     const context = {
       workspaceState: new TestMemento(),
@@ -642,9 +674,7 @@ describe('capturer', () => {
     assert.ok(
       markdown.includes('Compile summary is not available for the sketch')
     )
-    assert.ok(markdown.includes('Quick Fixes:'))
-    assert.ok(markdown.includes('$(check) Compile Sketch'))
-    assert.ok(markdown.includes('$(inspect) Compile Sketch with Debug Symbols'))
+    assert.ok(!markdown.includes('Quick Fixes:'))
     manager.dispose()
   })
 
@@ -674,7 +704,7 @@ describe('capturer', () => {
       configId: config.id,
     }
     const item = manager.getTreeItem(root)
-    assert.strictEqual(item.description, 'FQBN mismatch')
+    assert.strictEqual(item.description, 'Sketch FQBN mismatch')
     assert.ok(item.iconPath instanceof vscode.ThemeIcon)
     assert.strictEqual(item.iconPath.id, 'warning')
     manager.dispose()
@@ -852,27 +882,22 @@ function createBoardLabArduinoContext(
     openedSketches: [sketchFolder],
   })
   const boardLab = base as ArduinoContextWithBoardLab
-  if (typeof options.detectedPort === 'boolean') {
-    const detectedPorts = options.detectedPort
-      ? ({
+  const detectedPorts =
+    options.detectedPort === false
+      ? ({} as BoardLabContextExt['boardsListWatcher']['detectedPorts'])
+      : ({
           mock: {
             port: { protocol: 'serial', address: portAddress },
           },
-        } as unknown as NonNullable<
-          BoardLabContextExt['boardsListWatcher']
-        >['detectedPorts'])
-      : ({} as NonNullable<
-          BoardLabContextExt['boardsListWatcher']
-        >['detectedPorts'])
-    const detectedPortsEmitter = new vscode.EventEmitter<typeof detectedPorts>()
-    ;(
-      boardLab as unknown as {
-        boardsListWatcher?: BoardLabContextExt['boardsListWatcher']
-      }
-    ).boardsListWatcher = {
-      detectedPorts,
-      onDidChangeDetectedPorts: detectedPortsEmitter.event,
+        } as unknown as BoardLabContextExt['boardsListWatcher']['detectedPorts'])
+  const detectedPortsEmitter = new vscode.EventEmitter<typeof detectedPorts>()
+  ;(
+    boardLab as unknown as {
+      boardsListWatcher: BoardLabContextExt['boardsListWatcher']
     }
+  ).boardsListWatcher = {
+    detectedPorts,
+    onDidChangeDetectedPorts: detectedPortsEmitter.event,
   }
   boardLab.createMonitorClient = async (port) => {
     if (createMonitorClient) {
@@ -884,6 +909,41 @@ function createBoardLabArduinoContext(
     _port: { protocol: string; address: string },
     run: (options?: { retry?: number }) => Promise<T>
   ): Promise<T> => run()
+  boardLab.pickSketch = async () => sketchFolder
+  boardLab.selectSketch = async () => sketchFolder
+  boardLab.pickBoard = async () => sketchFolder.board
+  boardLab.selectBoard = async (_currentSketchOrOptions, pickOptions) => {
+    const selection = sketchFolder.board
+    if (
+      pickOptions?.filters &&
+      Array.isArray(pickOptions.filters) &&
+      selection &&
+      'fqbn' in selection
+    ) {
+      for (const filter of pickOptions.filters) {
+        const isVisible = await filter({
+          board: selection,
+          selection,
+        } as never)
+        if (!isVisible) {
+          return undefined
+        }
+      }
+    }
+    return selection
+  }
+  boardLab.setBoardByFqbn = async (fqbn) => {
+    const targetFqbn = typeof fqbn === 'string' ? fqbn : fqbn.toString()
+    const updatedBoard = mockBoardDetails(targetFqbn)
+    ;(
+      sketchFolder as unknown as {
+        board: ReturnType<typeof mockBoardDetails>
+      }
+    ).board = updatedBoard
+    return updatedBoard
+  }
+  boardLab.pickPort = async () => sketchFolder.port
+  boardLab.selectPort = async () => sketchFolder.port
   return boardLab
 }
 

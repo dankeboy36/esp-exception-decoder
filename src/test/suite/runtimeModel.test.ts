@@ -86,11 +86,16 @@ describe('runtimeModel', () => {
     assert.equal(getRuntimeStatus(runtime), 'Invalid FQBN')
   })
 
-  it('returns warnings when selected fqbn differs from engine and build fqbn', () => {
+  it('returns warnings when sketch and build fqbn differ from capturer fqbn', () => {
     const runtime = createRuntime(
-      {},
       {
-        selectedBoardFqbn: 'esp32:esp32:esp32da',
+        config: {
+          ...createRuntime().config,
+          fqbn: 'esp32:esp32:esp32da',
+        },
+      },
+      {
+        selectedBoardFqbn: 'esp32:esp32:esp32c3',
         buildOptions: {
           fqbn: 'esp32:esp32:esp32c3',
         },
@@ -110,7 +115,32 @@ describe('runtimeModel', () => {
       true
     )
     assert.equal(getRuntimeStatus(runtime), 'Warning')
-    assert.equal(resolveRootDescription(runtime), 'FQBN mismatch')
+    assert.equal(resolveRootDescription(runtime), 'Sketch FQBN mismatch')
+  })
+
+  it('returns build mismatch warning when build fqbn differs from capturer fqbn', () => {
+    const runtime = createRuntime(
+      {},
+      {
+        buildOptions: {
+          fqbn: 'esp32:esp32:esp32da',
+        },
+      }
+    )
+    const problems = collectRuntimeProblems(runtime)
+    assert.equal(
+      problems.some(
+        (problem) => problem.code === 'fqbn-mismatch-selected-engine'
+      ),
+      false
+    )
+    assert.equal(
+      problems.some(
+        (problem) => problem.code === 'fqbn-mismatch-selected-build'
+      ),
+      true
+    )
+    assert.equal(resolveRootDescription(runtime), 'Build FQBN mismatch')
   })
 
   it('uses expected root context values based on state and event count', () => {
@@ -136,6 +166,44 @@ describe('runtimeModel', () => {
     assert.equal(
       rootContextValue(stoppedWithEvents),
       'espCapturerRootStoppedHasEvents'
+    )
+
+    const stoppedFixable = createRuntime(
+      {},
+      {
+        hasCompileSummary: false,
+      }
+    )
+    assert.equal(
+      rootContextValue(stoppedFixable),
+      'espCapturerRootStoppedFixableCompile'
+    )
+
+    const stoppedFixableWithEvents = createRuntime(
+      {
+        eventsBySignature: new Map<string, unknown>([['sig', {}]]),
+      },
+      {
+        hasCompileSummary: false,
+      }
+    )
+    assert.equal(
+      rootContextValue(stoppedFixableWithEvents),
+      'espCapturerRootStoppedFixableCompileHasEvents'
+    )
+
+    const capturingFixable = createRuntime(
+      {
+        monitor: {},
+        monitorState: 'running',
+      },
+      {
+        selectedBoardFqbn: 'esp32:esp32:esp32da',
+      }
+    )
+    assert.equal(
+      rootContextValue(capturingFixable),
+      'espCapturerRootCapturingFixableSync'
     )
   })
 
@@ -167,7 +235,35 @@ describe('runtimeModel', () => {
     const runtime = createRuntime()
     assert.equal(
       toRootLabel(runtime),
-      '/dev/mock0 · sketch · ESP32C3 Dev Module (esp32:esp32:esp32c3)'
+      '/dev/mock0 · sketch · ESP32C3 Dev Module'
+    )
+    const runtimeWithoutBoardName = createRuntime(
+      {},
+      {
+        boardName: undefined,
+        selectedBoardName: undefined,
+      }
+    )
+    assert.equal(
+      toRootLabel(runtimeWithoutBoardName),
+      '/dev/mock0 · sketch · esp32c3'
+    )
+    const runtimeWithMismatchedSelectedBoard = createRuntime(
+      {
+        config: {
+          ...createRuntime().config,
+          fqbn: 'esp32:esp32:esp32da',
+        },
+      },
+      {
+        boardName: undefined,
+        selectedBoardName: 'ESP32C3 Dev Module',
+        selectedBoardFqbn: 'esp32:esp32:esp32c3',
+      }
+    )
+    assert.equal(
+      toRootLabel(runtimeWithMismatchedSelectedBoard),
+      '/dev/mock0 · sketch · esp32da'
     )
     assert.equal(sanitizeFqbn('esp32:esp32:esp32c3'), 'esp32:esp32:esp32c3')
     assert.equal(sanitizeFqbn('invalid'), undefined)
