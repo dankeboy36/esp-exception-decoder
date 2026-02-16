@@ -135,10 +135,10 @@ export function toRootLabel(runtime: RuntimeLike): string {
   const sketchName = path.basename(runtime.config.sketchPath)
   const boardName =
     runtime.readiness.boardName ?? runtime.readiness.selectedBoardName
-  const boardPart = boardName
-    ? `${boardName} (${runtime.config.fqbn})`
-    : runtime.config.fqbn
-  return `${runtime.config.port.address} · ${sketchName} · ${boardPart}`
+  if (!boardName) {
+    return `${runtime.config.port.address} · ${sketchName}`
+  }
+  return `${runtime.config.port.address} · ${sketchName} · ${boardName}`
 }
 
 export function rootContextValue(runtime: RuntimeLike): string {
