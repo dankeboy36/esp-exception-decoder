@@ -197,7 +197,7 @@ describe('capturer', () => {
         port: { protocol: 'serial', address: '/dev/ttyUSB0' },
       }),
       {
-        sketchPath: '/tmp/sketch-with-options',
+        sketchPath: path.resolve('/tmp/sketch-with-options'),
         fqbn: 'esp32:esp32:esp32da:CPUFreq=240,PartitionScheme=huge_app',
         port: { protocol: 'serial', address: '/dev/ttyUSB0' },
       }
