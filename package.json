@@ -251,7 +251,7 @@
       {
         "view": "espExceptionDecoder.capturerView",
         "when": "espExceptionDecoder.capturerAvailable",
-        "contents": "Use Capturer to automatically detect crashes and group repeated crash signatures.\n\nTo get started, select a sketch, choose an ESP32 or ESP8266 board, compile and upload the sketch, then start Capturer instead of a regular serial monitor. [Create your first ESP Crash Capturer](command:espExceptionDecoder.capturerCreate \"Create a new ESP Crash Capturer\"). After that, use the $(add) action in the view title to add more capturers."
+        "contents": "Automatically detect ESP crashes and group repeated crash signatures.\n\nTo get started, open a sketch, select an ESP32 or ESP8266 board, compile and upload your sketch, then start a Capturer instead of a regular serial monitor. [Create your first ESP Crash Capturer](command:espExceptionDecoder.capturerCreate \"Create a new ESP Crash Capturer\"). After creating one, use the $(add) action in the view title to add additional capturers."
       }
     ]
   },
