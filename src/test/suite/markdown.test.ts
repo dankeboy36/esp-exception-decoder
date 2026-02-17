@@ -164,12 +164,6 @@ describe('markdown', () => {
     assert.equal(readyMarkdown.includes('$(pass)'), true)
     assert.equal(readyMarkdown.includes('- Capturer Board:'), true)
     assert.equal(readyMarkdown.includes('- Sketch Board:'), true)
-    assert.equal(
-      readyMarkdown.includes(
-        'Full build metadata is available in crash event preview and capturer state dump.'
-      ),
-      true
-    )
     assert.equal(readyMarkdown.includes('Compile Details:'), false)
     assert.equal(readyMarkdown.includes('Optimization Flags'), false)
     assert.equal(readyMarkdown.includes('ELF SHA256:'), false)

@@ -179,9 +179,6 @@ export function toRootTreeItemMarkdown(
     }
   }
 
-  md.appendMarkdown(
-    '\n_Full build metadata is available in crash event preview and capturer state dump._\n'
-  )
   md.appendMarkdown('\n----\n')
   md.appendMarkdown(`_Hold ${mouseOverModifierLabel()} key to mouse over_\n`)
 
