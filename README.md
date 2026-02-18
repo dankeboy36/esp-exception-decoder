@@ -22,8 +22,7 @@ This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) i
 
 1. In BoardLab, select the target **Sketch**, **Board** (`esp32` or `esp8266`), and **Port**.
 2. Compile and upload the sketch.
-> [!TIP]
-> Recommended: compile with debug symbols for better stacktrace/source decoding.
+   > **ⓘ** Recommended: compile with debug symbols for better stacktrace/source decoding.
 3. Open the **ESP Decoder** panel and the **ESP Crash Capturer** view.
 4. Click **+** in the view title to create a crash capturer.
 
@@ -89,8 +88,7 @@ Arduino IDE does not install VS Code Marketplace extensions automatically. To us
 2. Make sure the Arduino IDE is not running. Then, copy the downloaded extension into the `plugins` folder located in the Arduino IDE's configuration directory. If the `plugins` folder does not exist, create it.
    - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
    - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
-> [!TIP]
-> If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
+     > **ⓘ** If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
 
 For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the original documentation for the last compatible release:
 
@@ -111,8 +109,7 @@ For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the orig
    npm run compile
    ```
 
-> [!TIP]
-> Use `npm run package` to bundle the VSIX for production.
+   > **ⓘ** Use `npm run package` to bundle the VSIX for production.
 
 3. Test the extension:
 
