@@ -43,7 +43,6 @@ import {
   capturerViewId,
   dumpCapturerStateCommandId,
   idleFlushDelayMs,
-  replayFileStateKey,
   splitMarker,
   supportedCapturerArchitectures,
 } from './constants'
@@ -675,14 +674,10 @@ export class CapturerManager
     if (!runtime) {
       return
     }
-    const selectedUri = recordingUri ?? (await this.pickReplayFile())[0]
+    const selectedUri = recordingUri
     if (!selectedUri) {
       return
     }
-    await this.context.workspaceState.update(
-      replayFileStateKey,
-      selectedUri.fsPath
-    )
     const rawText = await fs.readFile(selectedUri.fsPath, 'utf8')
     const encoder = new TextEncoder()
     const segments = splitReplaySegments(rawText)
@@ -1269,25 +1264,6 @@ export class CapturerManager
       { placeHolder: placeholder }
     )
     return quickPickItem?.configId
-  }
-
-  async pickReplayFile(): Promise<vscode.Uri[]> {
-    const defaultPath = this.context.workspaceState.get<string | undefined>(
-      replayFileStateKey
-    )
-    const defaultUri = defaultPath
-      ? vscode.Uri.file(path.dirname(defaultPath))
-      : vscode.workspace.workspaceFolders?.[0]?.uri
-    const selected = await vscode.window.showOpenDialog({
-      canSelectMany: false,
-      openLabel: 'Replay recording',
-      defaultUri,
-      filters: {
-        'Text and logs': ['txt', 'log'],
-        All: ['*'],
-      },
-    })
-    return selected ?? []
   }
 
   flushRuntime(configId: string, runtime: CapturerRuntime): void {

@@ -1,6 +1,5 @@
 export const capturerViewId = 'espExceptionDecoder.capturerView'
 export const capturerConfigStateKey = 'espExceptionDecoder.capturer.configs.v1'
-export const replayFileStateKey = 'espExceptionDecoder.capturer.replayFile.v1'
 
 export const statusNoElf = 'No ELF'
 export const statusReady = 'Ready'
