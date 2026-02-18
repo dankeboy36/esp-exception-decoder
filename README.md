@@ -1,6 +1,6 @@
 # ESP Exception Decoder
 
-ESP Exception Decoder helps you understand crash stack traces and backtraces from ESP8266 and ESP32 boards.
+ESP Exception Decoder helps you analyze ESP8266 and ESP32 crashes by decoding stack traces, backtraces, and panic output. It supports both automatic crash capture (recommended) and manual decoding workflows.
 
 ![ESP Exception Decoder](./resources/static/esp-exception-decoder.gif)
 
@@ -18,21 +18,57 @@ This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) i
 
 ## Usage
 
+### Recommended: ESP Crash Capturer (VS Code + BoardLab)
+
+1. In BoardLab, select the target **Sketch**, **Board** (`esp32` or `esp8266`), and **Port**.
+2. Compile and upload the sketch.
+   - Recommended: compile with debug symbols for better stacktrace/source decoding.
+3. Open the **ESP Decoder** panel and the **ESP Crash Capturer** view.
+
+![ESP Crash Capturer View](./resources/static/usage-capturer-view-empty.png)
+
+4. Click **+** in the view title to create a crash capturer.
+5. Click **Start Capturing** on the capturer item (this enables crash detection for the active monitor session).
+6. Reproduce the crash on your board while the monitor is running.
+7. Open the captured event with **Preview Crash Event**.
+
+![ESP Crash Capturer Events](./resources/static/usage-capturer-running-events.png)
+
+8. If the capturer reports problems, open **Quick Fixes...** from the capturer item menu.
+
+> [!TIP]
+> FQBN mismatch warnings compare the capturer setup with the sketch/build configuration.
+> They do not verify the exact firmware currently flashed on the board from monitor output.
+> If things look out of sync, recompile, upload again, and sync the capturer target.
+
+![ESP Crash Capturer Quick Fixes](./resources/static/usage-capturer-quick-fixes.png)
+
+The Capturer analyzes the serial monitor stream and groups repeated crash signatures. Each captured crash event can be previewed and decoded without manually copying stack traces.
+
+### Manual: Decoder Terminal (Legacy Workflow)
+
+This workflow is kept for compatibility and for users who already have copied crash output. It does not require a Capturer and works independently of the monitor integration.
+
+Use this if you already have copied crash text and want to decode it manually.
+
 1. Compile the sketch.
 2. Upload the sketch to the ESP8266/ESP32 board.
-3. Open the Monitor and wait for an exception.
+3. Open the serial monitor and wait for a crash (panic output or backtrace).
 4. When an exception occurs, open the **ESP Exception Decoder terminal**:
-   - Open the _Command Palette_ using <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
+   - Open the _Command Palette_ with <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
    - Run `ESP Exception Decoder: Show Decoder Terminal`.
-
 5. Paste the exception stack trace or backtrace into the decoder terminal.
-   > **ⓘ** For more details on copying and pasting in the terminal, see the VS Code documentation: https://code.visualstudio.com/docs/terminal/basics#copy-paste
+
+![ESP Exception Decoder Terminal](./resources/static/usage-terminal-manual.png)
+
+> [!TIP]
+> For terminal copy/paste details, see: https://code.visualstudio.com/docs/terminal/basics#copy-paste
 
 ## Installation
 
 ### VS Code
 
-Install from the Visual Studio Code Marketplace.
+Install from the Visual Studio Code Marketplace (required for the 2.x release line).
 
 - ESP Exception Decoder: https://marketplace.visualstudio.com/items?itemName=dankeboy36.esp-exception-decoder
 
@@ -49,7 +85,8 @@ Arduino IDE does not install VS Code Marketplace extensions automatically. To us
 2. Make sure the Arduino IDE is not running. Then, copy the downloaded extension into the `plugins` folder located in the Arduino IDE's configuration directory. If the `plugins` folder does not exist, create it.
    - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
    - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
-     > **ⓘ** If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
+     > [!TIP]
+     > If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
 
 For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the original documentation for the last compatible release:
 
@@ -70,7 +107,8 @@ For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the orig
    npm run compile
    ```
 
-   > **ⓘ** Use `npm run package` to bundle the VSIX for production.
+   > [!TIP]
+   > Use `npm run package` to bundle the VSIX for production.
 
 3. Test the extension:
 
