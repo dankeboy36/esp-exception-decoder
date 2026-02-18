@@ -22,8 +22,8 @@ This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) i
 
 1. In BoardLab, select the target **Sketch**, **Board** (`esp32` or `esp8266`), and **Port**.
 2. Compile and upload the sketch.
-   > [!TIP]
-   > Recommended: compile with debug symbols for better stacktrace/source decoding.
+> [!TIP]
+> Recommended: compile with debug symbols for better stacktrace/source decoding.
 3. Open the **ESP Decoder** panel and the **ESP Crash Capturer** view.
 4. Click **+** in the view title to create a crash capturer.
 
@@ -42,10 +42,10 @@ This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) i
 
    ![ESP Crash Capturer Quick Fixes](./resources/static/usage-capturer-quick-fixes.png)
 
-   > [!TIP]
-   > FQBN mismatch warnings compare the capturer setup with the sketch/build configuration.
-   > They do not verify the exact firmware currently flashed on the board from monitor output.
-   > If things look out of sync, recompile, upload again, and sync the capturer target.
+> [!TIP]
+> FQBN mismatch warnings compare the capturer setup with the sketch/build configuration.
+> They do not verify the exact firmware currently flashed on the board from monitor output.
+> If things look out of sync, recompile, upload again, and sync the capturer target.
 
 The Capturer analyzes the serial monitor stream and groups repeated crash signatures. Each captured crash event can be previewed and decoded without manually copying stack traces. There is no need to stop capturing before compiling or uploading new firmware. Uploads are handled automatically, and a new crash event group is created for the newly flashed ELF. Previously recorded events can be cleared manually if desired.
 
@@ -65,8 +65,8 @@ Use this if you already have copied crash text and want to decode it manually.
 
    ![ESP Exception Decoder Terminal](./resources/static/usage-terminal-manual.png)
 
-   > [!TIP]
-   > For terminal copy/paste details, see: https://code.visualstudio.com/docs/terminal/basics#copy-paste
+> [!TIP]
+> For terminal copy/paste details, see: https://code.visualstudio.com/docs/terminal/basics#copy-paste
 
 ## Installation
 
@@ -89,8 +89,8 @@ Arduino IDE does not install VS Code Marketplace extensions automatically. To us
 2. Make sure the Arduino IDE is not running. Then, copy the downloaded extension into the `plugins` folder located in the Arduino IDE's configuration directory. If the `plugins` folder does not exist, create it.
    - On Windows, it's under `%UserProfile%\.arduinoIDE\plugins` (typically `C:\Users\<username>\.arduinoIDE\plugins` where `<username>` is your Windows username).
    - On Linux and macOS, it's under `~/.arduinoIDE/plugins`.
-     > [!TIP]
-     > If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
+> [!TIP]
+> If you encounter issues, refer to the [_Installation_](https://github.com/arduino/arduino-ide/blob/main/docs/advanced-usage.md#installation) section of the documentation for Arduino IDE _3rd party themes_. The steps are very similar.
 
 For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the original documentation for the last compatible release:
 
@@ -111,8 +111,8 @@ For detailed usage instructions specific to Arduino IDE 2.2.x, refer to the orig
    npm run compile
    ```
 
-   > [!TIP]
-   > Use `npm run package` to bundle the VSIX for production.
+> [!TIP]
+> Use `npm run package` to bundle the VSIX for production.
 
 3. Test the extension:
 
