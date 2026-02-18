@@ -25,13 +25,13 @@ import {
 import { createDecodeParams, type DecodeParams } from '../decodeParams'
 import { findElfPath, resolveBuildPathFromSketchPath } from '../findElfPath'
 import {
+  capturerClearAllEventsCommandId,
+  capturerClearEventCommandId,
   capturerCompileSketchCommandId,
   capturerCompileSketchDebugCommandId,
   capturerConfigStateKey,
   capturerCopyToClipboardCommandId,
   capturerCreateCommandId,
-  capturerDeleteAllEventsCommandId,
-  capturerDeleteEventCommandId,
   capturerQuickFixCommandId,
   capturerQuickFixSyncSketchBoardCommandId,
   capturerRefreshCommandId,
@@ -758,7 +758,7 @@ export class CapturerManager
     }
   }
 
-  async deleteEvent(target?: CapturerNode): Promise<void> {
+  async clearEvent(target?: CapturerNode): Promise<void> {
     if (!target || (target.type !== 'event' && target.type !== 'frame')) {
       return
     }
@@ -774,7 +774,7 @@ export class CapturerManager
     this.refreshRoot(target.configId)
   }
 
-  async deleteAllEvents(target?: CapturerNode): Promise<void> {
+  async clearAllEvents(target?: CapturerNode): Promise<void> {
     const configId = await this.resolveConfigId(
       target,
       'Select capturer to clear crash events'
@@ -1541,12 +1541,12 @@ export function registerCapturer(
       (target: CapturerNode | undefined) => manager.replayEvent(target)
     ),
     vscode.commands.registerCommand(
-      capturerDeleteEventCommandId,
-      (target: CapturerNode | undefined) => manager.deleteEvent(target)
+      capturerClearEventCommandId,
+      (target: CapturerNode | undefined) => manager.clearEvent(target)
     ),
     vscode.commands.registerCommand(
-      capturerDeleteAllEventsCommandId,
-      (target: CapturerNode | undefined) => manager.deleteAllEvents(target)
+      capturerClearAllEventsCommandId,
+      (target: CapturerNode | undefined) => manager.clearAllEvents(target)
     ),
     vscode.commands.registerCommand(
       capturerShowEventCommandId,

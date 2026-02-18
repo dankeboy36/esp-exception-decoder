@@ -64,7 +64,7 @@
       {
         "command": "espExceptionDecoder.capturerRemove",
         "title": "Delete Crash Capturer",
-        "icon": "$(close)",
+        "icon": "$(trash)",
         "category": "ESP Exception Decoder"
       },
       {
@@ -119,14 +119,14 @@
         "category": "ESP Exception Decoder"
       },
       {
-        "command": "espExceptionDecoder.capturerDeleteEvent",
-        "title": "Delete Crash Event",
+        "command": "espExceptionDecoder.capturerClearEvent",
+        "title": "Clear Crash Event",
         "icon": "$(close)",
         "category": "ESP Exception Decoder"
       },
       {
-        "command": "espExceptionDecoder.capturerDeleteAllEvents",
-        "title": "Delete All Crash Events",
+        "command": "espExceptionDecoder.capturerClearAllEvents",
+        "title": "Clear All Crash Events",
         "icon": "$(clear-all)",
         "category": "ESP Exception Decoder"
       },
@@ -187,7 +187,7 @@
           "group": "inline@2"
         },
         {
-          "command": "espExceptionDecoder.capturerDeleteAllEvents",
+          "command": "espExceptionDecoder.capturerClearAllEvents",
           "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingHasEvents || viewItem == espCapturerRootReadyHasEvents || viewItem == espCapturerRootStoppedHasEvents || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
           "group": "inline@2"
         },
@@ -207,7 +207,7 @@
           "group": "inline@2"
         },
         {
-          "command": "espExceptionDecoder.capturerDeleteEvent",
+          "command": "espExceptionDecoder.capturerClearEvent",
           "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerEventDetected || viewItem == espCapturerEventDecoding || viewItem == espCapturerEventDecoded || viewItem == espCapturerEventEvaluating || viewItem == espCapturerEventEvaluated)",
           "group": "inline@3"
         }
@@ -271,11 +271,11 @@
           "when": "false"
         },
         {
-          "command": "espExceptionDecoder.capturerDeleteEvent",
+          "command": "espExceptionDecoder.capturerClearEvent",
           "when": "false"
         },
         {
-          "command": "espExceptionDecoder.capturerDeleteAllEvents",
+          "command": "espExceptionDecoder.capturerClearAllEvents",
           "when": "false"
         },
         {

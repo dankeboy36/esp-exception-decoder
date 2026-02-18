@@ -24,10 +24,10 @@ export const capturerStopCommandId = 'espExceptionDecoder.capturerStop'
 export const capturerRefreshCommandId = 'espExceptionDecoder.capturerRefresh'
 export const capturerReplayCrashCommandId =
   'espExceptionDecoder.capturerReplayCrash'
-export const capturerDeleteEventCommandId =
-  'espExceptionDecoder.capturerDeleteEvent'
-export const capturerDeleteAllEventsCommandId =
-  'espExceptionDecoder.capturerDeleteAllEvents'
+export const capturerClearEventCommandId =
+  'espExceptionDecoder.capturerClearEvent'
+export const capturerClearAllEventsCommandId =
+  'espExceptionDecoder.capturerClearAllEvents'
 export const capturerShowEventCommandId =
   'espExceptionDecoder.capturerShowEvent'
 export const capturerQuickFixCommandId = 'espExceptionDecoder.capturerQuickFix'
