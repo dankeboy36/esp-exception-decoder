@@ -2,7 +2,7 @@
 
 ESP Exception Decoder helps you understand crash stack traces and backtraces from ESP8266 and ESP32 boards.
 
-![ESP Exception Decoder](./resources/static/esp-exception-decoder-main.png)
+![ESP Exception Decoder](./resources/static/esp-exception-decoder.gif)
 
 - **VS Code (recommended):** Runs as a Visual Studio Code extension and integrates with [BoardLab](https://github.com/dankeboy36/boardlab).
 - **Arduino IDE 2.2.x (deprecated):** Older **1.x** versions still work when installed manually as a VSIX.
