@@ -332,7 +332,7 @@
     "error-replay-debug-adapter": "^0.1.1",
     "fqbn": "^1.4.0",
     "markdown-escape": "^2.0.0",
-    "trbr": "^0.3.0"
+    "trbr": "^0.3.1"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
