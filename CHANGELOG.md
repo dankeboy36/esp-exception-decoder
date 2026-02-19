@@ -12,6 +12,13 @@
 
 * auto-detect and decode ESP crashes ([#61](https://github.com/dankeboy36/esp-exception-decoder/issues/61)) ([304e236](https://github.com/dankeboy36/esp-exception-decoder/commit/304e2360be01a04de06b93130779f83ef226fb42))
 
+# [2.1.0](https://github.com/dankeboy36/esp-exception-decoder/compare/2.0.0...2.1.0) (2026-02-19)
+
+
+### Features
+
+* auto-detect and decode ESP crashes ([#61](https://github.com/dankeboy36/esp-exception-decoder/issues/61)) ([304e236](https://github.com/dankeboy36/esp-exception-decoder/commit/304e2360be01a04de06b93130779f83ef226fb42))
+
 # [2.0.0](https://github.com/dankeboy36/esp-exception-decoder/compare/1.1.1...2.0.0) (2026-01-01)
 
 
