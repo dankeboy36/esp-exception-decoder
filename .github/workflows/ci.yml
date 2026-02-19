@@ -128,6 +128,15 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          fetch-tags: true
+
+      - name: Ensure full git history and tags
+        run: |
+          set -euo pipefail
+          git fetch --force --tags --prune --unshallow || git fetch --force --tags --prune
+          git fetch --force origin '+refs/heads/*:refs/remotes/origin/*'
+          git rev-parse --is-shallow-repository
+          git fsck --full
 
       - name: Use Node.js
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
