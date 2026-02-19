@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/dankeboy36/esp-exception-decoder/compare/2.1.0...2.1.1) (2026-02-19)
+
+
+### Bug Fixes
+
+* use vscode.Uri when building readonly fs path ([#65](https://github.com/dankeboy36/esp-exception-decoder/issues/65)) ([649ca38](https://github.com/dankeboy36/esp-exception-decoder/commit/649ca38d34f2e7eb68036ab06de7846900816a32))
+
 # [2.1.0](https://github.com/dankeboy36/esp-exception-decoder/compare/2.0.0...2.1.0) (2026-02-19)
 
 
