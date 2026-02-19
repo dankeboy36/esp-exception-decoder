@@ -26,6 +26,7 @@ This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) i
 3. Open the **ESP Decoder** panel and the **ESP Crash Capturer** view.
 
    > **ⓘ** If you cannot see the **ESP Crash Capturer** view, open the _Command Palette_ (<kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) and run `ESP Decoder: Focus on ESP Crash Capturer View`.
+
 4. Click **+** in the view title to create a crash capturer.
 
    ![ESP Crash Capturer View](./resources/static/usage-capturer-view-empty.png)
