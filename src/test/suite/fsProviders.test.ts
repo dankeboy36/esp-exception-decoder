@@ -54,6 +54,26 @@ describe('fsProviders', () => {
     assert.equal(toSourcePathFromReadonlyUri(fallback), '/tmp/no-query.cpp')
   })
 
+  it('creates absolute readonly uris for Windows drive-letter paths', () => {
+    const sourcePath =
+      'C:\\Users\\xxx\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.2.1\\cores\\esp32\\main.cpp'
+    const uri = toReadonlyLibraryUri(sourcePath)
+    const serialized = uri.toString()
+
+    assert.equal(uri.scheme, readonlyLibraryScheme)
+    assert.equal(toSourcePathFromReadonlyUri(uri), sourcePath)
+    assert.equal(serialized.startsWith(`${readonlyLibraryScheme}:/`), true)
+
+    const fallback = vscode.Uri.from({
+      scheme: readonlyLibraryScheme,
+      path: '/C:/Users/xxx/AppData/Local/Arduino15/main.cpp',
+    })
+    assert.equal(
+      toSourcePathFromReadonlyUri(fallback),
+      'C:/Users/xxx/AppData/Local/Arduino15/main.cpp'
+    )
+  })
+
   it('reads readonly files and blocks write operations', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'capturer-fs-'))
     const subDir = path.join(root, 'sub')

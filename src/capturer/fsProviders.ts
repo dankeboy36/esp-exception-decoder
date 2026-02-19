@@ -57,14 +57,17 @@ export class CrashReportContentProvider
 export function toReadonlyLibraryUri(filePath: string): vscode.Uri {
   return vscode.Uri.from({
     scheme: readonlyLibraryScheme,
-    path: filePath.replace(/\\/g, '/'),
+    path: vscode.Uri.file(filePath).path,
     query: `source=${encodeURIComponent(filePath)}`,
   })
 }
 
 export function toSourcePathFromReadonlyUri(uri: vscode.Uri): string {
   const source = new URLSearchParams(uri.query).get('source')
-  return source && source.length > 0 ? source : uri.path
+  if (source && source.length > 0) {
+    return source
+  }
+  return /^\/[A-Za-z]:\//.test(uri.path) ? uri.path.slice(1) : uri.path
 }
 
 export class ReadonlyFsProvider
