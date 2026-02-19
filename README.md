@@ -65,7 +65,7 @@ Use this if you already have copied crash text and want to decode it manually.
    ![ESP Exception Decoder Terminal](./resources/static/usage-terminal-manual.png)
 
 > [!TIP]
-> For terminal copy/paste details, see: https://code.visualstudio.com/docs/terminal/basics#copy-paste
+> For terminal copy/paste details, see: https://code.visualstudio.com/docs/terminal/basics#_copy-paste
 
 ## Installation
 
