@@ -1,4 +1,4 @@
-name: Build
+name: CI
 permissions:
   contents: read
   pull-requests: write
@@ -22,15 +22,15 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
-      short_sha: ${{ steps.get_sha.outputs.short_sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 22.14.0
 
@@ -41,16 +41,16 @@ jobs:
         id: get_version
         run: |
           set -euo pipefail
-          OUTPUT="$(npx semantic-release --dry-run --no-ci 2>/dev/null || true)"
-          VERSION="$(echo "$OUTPUT" | awk '/next release version is/ {print $5}' | tail -n1)"
+          MODE=""
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then MODE="--release"; fi
+          VERSION=$(npx next-version-helper $MODE)
           if [ -z "$VERSION" ]; then
-            VERSION="$(node -p "require('./package.json').version")"
+            echo "semantic-release did not return a next version." >&2
+            exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Get Short SHA
-        id: get_sha
-        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        env:
+          DEBUG: semantic-release-next-version,semantic-release:*
 
   test:
     name: Test (${{ matrix.os }}, node-${{ matrix.node }})
@@ -62,12 +62,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: ${{ matrix.node }}
 
@@ -92,12 +92,12 @@ jobs:
     needs: [test, determine-version]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 22.14.0
 
@@ -105,7 +105,7 @@ jobs:
         run: npm ci
 
       - name: Set Version
-        run: npm pkg set version="${{ needs.determine-version.outputs.version }}-preview-${{ needs.determine-version.outputs.short_sha }}"
+        run: npm pkg set version="${{ needs.determine-version.outputs.version }}"
 
       - name: Package
         run: npm run package
@@ -114,27 +114,31 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
-          name: esp-exception-decoder-${{ needs.determine-version.outputs.version }}-preview-${{ needs.determine-version.outputs.short_sha }}
+          name: esp-exception-decoder-${{ needs.determine-version.outputs.version }}
           path: '*.vsix'
 
   release:
     name: Release
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [determine-version, test]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 22.14.0
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Set Version
+        run: npm pkg set version="${{ needs.determine-version.outputs.version }}"
 
       - name: Package
         run: npm run package

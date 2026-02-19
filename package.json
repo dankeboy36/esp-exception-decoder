@@ -3,7 +3,7 @@
   "displayName": "ESP Exception Decoder",
   "version": "1.1.1",
   "private": true,
-  "description": "ESP Exception Decoder helps you understand crash stack traces and backtraces from ESP8266 and ESP32 boards",
+  "description": "ESP Exception Decoder helps you analyze ESP8266 and ESP32 crashes by decoding stack traces, backtraces, and panic output. It supports both automatic crash capture (recommended) and manual decoding workflows",
   "categories": [
     "Other"
   ],
@@ -34,7 +34,7 @@
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "webpack --mode production --devtool hidden-source-map",
-    "clean": "rimraf dist out *.vsix",
+    "build:debug": "webpack --mode development --devtool source-map",
     "compile": "webpack && vsce package",
     "compile-tests": "tsc -p . --outDir out",
     "format": "prettier --write .",
@@ -43,8 +43,8 @@
     "package": "vsce package",
     "release": "semantic-release",
     "pretest": "npm run compile-tests && npm run compile",
-    "test": "node ./out/test/runTest.js",
-    "watch": "webpack --watch",
+    "test": "vscode-test --config .vscode-test.mjs --coverage --label extension-host",
+    "watch": "webpack --mode development --devtool source-map --watch",
     "watch-tests": "tsc -p . -w --outDir out"
   },
   "contributes": {
@@ -53,19 +53,287 @@
         "command": "espExceptionDecoder.showTerminal",
         "title": "Show Decoder Terminal",
         "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerCreate",
+        "title": "Create Crash Capturer",
+        "icon": "$(add)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerRemove",
+        "title": "Delete Crash Capturer",
+        "icon": "$(trash)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerStart",
+        "title": "Start Capturing",
+        "icon": "$(record)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerStop",
+        "title": "Stop Capturing",
+        "icon": "$(debug-stop)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerRefresh",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerQuickFix",
+        "title": "Quick Fix",
+        "icon": "$(light-bulb)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerQuickFixSyncSketchBoard",
+        "title": "Sync Sketch Board to Capturer FQBN",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerCompileSketchDebug",
+        "title": "Compile Sketch with Debug Symbols",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerCompileSketch",
+        "title": "Compile Sketch",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerReplayCrash",
+        "title": "Replay Crash",
+        "icon": "$(debug-rerun)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerShowEvent",
+        "title": "Preview Crash Event",
+        "icon": "$(open-preview)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerClearEvent",
+        "title": "Clear Crash Event",
+        "icon": "$(close)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerClearAllEvents",
+        "title": "Clear All Crash Events",
+        "icon": "$(clear-all)",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.dumpCrashCapturerState",
+        "title": "Dump ESP Crash Capturer State",
+        "category": "ESP Exception Decoder"
+      },
+      {
+        "command": "espExceptionDecoder.capturerCopyToClipboard",
+        "title": "Copy to Clipboard",
+        "category": "ESP Exception Decoder"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "esp-crash-replay",
+        "label": "ESP Crash Replay"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "espExceptionDecoder.capturerCreate",
+          "when": "view == espExceptionDecoder.capturerView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "espExceptionDecoder.capturerRefresh",
+          "when": "view == espExceptionDecoder.capturerView",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "espExceptionDecoder.capturerStart",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootReady || viewItem == espCapturerRootReadyHasEvents)",
+          "group": "inline@1"
+        },
+        {
+          "command": "espExceptionDecoder.capturerStop",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturing || viewItem == espCapturerRootCapturingHasEvents || viewItem == espCapturerRootCapturingFixableSync || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents)",
+          "group": "inline@1"
+        },
+        {
+          "command": "espExceptionDecoder.capturerRemove",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturing || viewItem == espCapturerRootCapturingHasEvents || viewItem == espCapturerRootCapturingFixableSync || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents)",
+          "group": "inline@3"
+        },
+        {
+          "command": "espExceptionDecoder.capturerRemove",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootStopped || viewItem == espCapturerRootStoppedHasEvents || viewItem == espCapturerRootStoppedFixableSync || viewItem == espCapturerRootStoppedFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableCompile || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "inline@3"
+        },
+        {
+          "command": "espExceptionDecoder.capturerRemove",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootReady || viewItem == espCapturerRootReadyHasEvents)",
+          "group": "inline@2"
+        },
+        {
+          "command": "espExceptionDecoder.capturerClearAllEvents",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingHasEvents || viewItem == espCapturerRootReadyHasEvents || viewItem == espCapturerRootStoppedHasEvents || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "inline@2"
+        },
+        {
+          "submenu": "capturerQuickFixId",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingFixableSync || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableSync || viewItem == espCapturerRootStoppedFixableSyncHasEvents || viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableCompile || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "inline@2"
+        },
+        {
+          "command": "espExceptionDecoder.capturerShowEvent",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerEventDetected || viewItem == espCapturerEventDecoding || viewItem == espCapturerEventDecoded || viewItem == espCapturerEventEvaluating || viewItem == espCapturerEventEvaluated)",
+          "group": "inline@1"
+        },
+        {
+          "command": "espExceptionDecoder.capturerReplayCrash",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerEventDecoded || viewItem == espCapturerEventEvaluated)",
+          "group": "inline@2"
+        },
+        {
+          "command": "espExceptionDecoder.capturerClearEvent",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerEventDetected || viewItem == espCapturerEventDecoding || viewItem == espCapturerEventDecoded || viewItem == espCapturerEventEvaluating || viewItem == espCapturerEventEvaluated)",
+          "group": "inline@3"
+        }
+      ],
+      "capturerQuickFixId": [
+        {
+          "command": "espExceptionDecoder.capturerQuickFixSyncSketchBoard",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingFixableSync || viewItem == espCapturerRootCapturingFixableSyncHasEvents || viewItem == espCapturerRootStoppedFixableSync || viewItem == espCapturerRootStoppedFixableSyncHasEvents)",
+          "group": "1_sync@1"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCompileSketchDebug",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableCompile || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "2_compile@1"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCompileSketch",
+          "when": "view == espExceptionDecoder.capturerView && (viewItem == espCapturerRootCapturingFixableCompile || viewItem == espCapturerRootCapturingFixableCompileHasEvents || viewItem == espCapturerRootStoppedFixableCompile || viewItem == espCapturerRootStoppedFixableCompileHasEvents)",
+          "group": "2_compile@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "espExceptionDecoder.capturerCreate",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerRemove",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerStart",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerStop",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerRefresh",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerQuickFix",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerQuickFixSyncSketchBoard",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCompileSketchDebug",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCompileSketch",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerReplayCrash",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerClearEvent",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerClearAllEvents",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerShowEvent",
+          "when": "false"
+        },
+        {
+          "command": "espExceptionDecoder.capturerCopyToClipboard",
+          "when": "false"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "capturerQuickFixId",
+        "icon": "$(light-bulb)",
+        "label": "Quick Fixes..."
+      }
+    ],
+    "views": {
+      "espExceptionDecoderPanel": [
+        {
+          "id": "espExceptionDecoder.capturerView",
+          "name": "ESP Crash Capturer",
+          "icon": "$(debug-console)"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "espExceptionDecoderPanel",
+          "title": "ESP Decoder",
+          "icon": "$(debug-console)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "espExceptionDecoder.capturerView",
+        "when": "espExceptionDecoder.capturerAvailable",
+        "contents": "Automatically detect ESP crashes and group repeated crash signatures.\n\nTo get started, open a sketch, select an ESP32 or ESP8266 board, compile and upload your sketch, then start a Capturer instead of a regular serial monitor. [Create your first ESP Crash Capturer](command:espExceptionDecoder.capturerCreate \"Create a new ESP Crash Capturer\"). After creating one, use the $(add) action in the view title to add additional capturers."
       }
     ]
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onFileSystem:espExceptionDecoderReadonlyFs",
+    "onFileSystem:espExceptionDecoderCrashReport"
   ],
   "dependencies": {
+    "@vscode/debugadapter": "^1.68.0",
     "debug": "^4.4.3",
-    "fqbn": "^1.3.1",
-    "trbr": "^0.1.24"
+    "error-replay-debug-adapter": "^0.1.1",
+    "fqbn": "^1.4.0",
+    "markdown-escape": "^2.0.0",
+    "trbr": "^0.3.1"
   },
   "devDependencies": {
-    "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/exec": "^7.1.0",
@@ -73,34 +341,35 @@
     "@semantic-release/github": "^12.0.0",
     "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/debug": "^4.1.12",
-    "@types/glob": "^9.0.0",
+    "@types/markdown-escape": "^1.1.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/temp": "^0.9.1",
     "@types/vscode": "^1.78.0",
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@typescript-eslint/parser": "^8.44.1",
+    "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.6.2",
+    "@vscode/vsce": "^3.7.1",
+    "boards-list": "^2.0.0",
     "eslint": "^9.31.0",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-prettier": "^5.5.1",
-    "glob": "^11.0.3",
     "mocha": "^11.7.4",
     "neostandard": "^0.12.2",
-    "nyc": "^17.1.0",
     "prettier": "^3.6.2",
     "prettier-plugin-jsdoc": "^1.3.3",
     "prettier-plugin-organize-imports": "^4.1.0",
     "prettier-plugin-packagejson": "^2.5.18",
     "rimraf": "^6.0.1",
     "semantic-release": "^25.0.0",
+    "semantic-release-next-version": "^0.1.3",
     "semantic-release-vsce": "^6.0.12",
     "temp": "^0.9.4",
     "ts-loader": "^9.5.4",
     "typescript": "^5.0.4",
-    "vscode-arduino-api": "^0.2.1",
+    "vscode-arduino-api": "^0.2.4",
     "webpack": "^5.81.0",
     "webpack-cli": "^5.0.2"
   },

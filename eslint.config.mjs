@@ -8,7 +8,7 @@ export default [
   ...neostandard({
     semi: false,
     ts: true,
-    ignores: ['out', 'dist', 'node_modules', '.vscode-test', '.nyc_output'],
+    ignores: ['out', 'dist', 'node_modules', '.vscode-test'],
   }),
   {
     plugins: {
@@ -21,6 +21,7 @@ export default [
       '@stylistic/comma-dangle': 'off',
       '@stylistic/indent': 'off',
       '@stylistic/no-tabs': 'off',
+      '@stylistic/brace-style': 'off',
       '@stylistic/space-before-function-paren': [
         'error',
         {

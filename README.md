@@ -1,38 +1,80 @@
 # ESP Exception Decoder
 
-ESP Exception Decoder helps you understand crash stack traces and backtraces from ESP8266 and ESP32 boards.
+ESP Exception Decoder helps you analyze ESP8266 and ESP32 crashes by decoding stack traces, backtraces, and panic output. It supports both automatic crash capture (recommended) and manual decoding workflows.
 
-![ESP Exception Decoder](./resources/static/esp-exception-decoder-main.png)
+![ESP Exception Decoder](./resources/static/esp-exception-decoder.gif)
 
 - **VS Code (recommended):** Runs as a Visual Studio Code extension and integrates with [BoardLab](https://github.com/dankeboy36/boardlab).
-- **Arduino IDE 2.2.x (deprecated):** Older **1.x** versions still work when installed manually as a VSIX.
+- **Arduino IDE 2.2.x (deprecated):** Only the **1.x** release line is supported via manual VSIX installation.
 
 > [!NOTE]
 > **Arduino IDE 2.2.x support is deprecated.**
 >
 > Starting with version **2.x**, ESP Exception Decoder targets **Visual Studio Code** and requires **BoardLab**.
 >
-> Arduino IDE 2.2.x users must stay on the **1.x** release line and install the extension manually as a VSIX.
+> Arduino IDE 2.2.x users must stay on the **1.x** release line and install the extension manually as a VSIX file.
 
 This extension uses the [TraceBreaker CLI](https://github.com/dankeboy36/trbr) internally. This project is inspired by the original Java-based [ESP8266/ESP32 Exception Stack Trace Decoder](https://github.com/me-no-dev/EspExceptionDecoder). The RISC-V decoder implementation originates from the [`esp_idf_monitor`](https://github.com/espressif/esp-idf-monitor/blob/fae383ecf281655abaa5e65433f671e274316d10/esp_idf_monitor/gdb_panic_server.py).
 
 ## Usage
 
+### Recommended: ESP Crash Capturer (VS Code + BoardLab)
+
+1. In BoardLab, select the target **Sketch**, **Board** (`esp32` or `esp8266`), and **Port**.
+2. Compile and upload the sketch.
+   > **ⓘ** Recommended: compile with debug symbols for better stacktrace/source decoding.
+3. Open the **ESP Decoder** panel and the **ESP Crash Capturer** view.
+
+   > **ⓘ** If you cannot see the **ESP Crash Capturer** view, open the _Command Palette_ (<kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>) and run `ESP Decoder: Focus on ESP Crash Capturer View`.
+
+4. Click **+** in the view title to create a crash capturer.
+
+   ![ESP Crash Capturer View](./resources/static/usage-capturer-view-empty.png)
+
+5. Click **Start Capturing** on the capturer item (this enables crash detection for the current device session). The serial monitor is handled automatically.
+
+   ![ESP Crash Capturer Start Capturing](./resources/static/usage-capturer-start-capturing.png)
+
+6. Reproduce the crash on your board while the monitor is running.
+7. Open the captured event with **Preview Crash Event**.
+
+   ![ESP Crash Capturer Events](./resources/static/usage-capturer-running-events.png)
+
+8. If the capturer reports problems, open **Quick Fixes...** from the capturer item menu.
+
+   ![ESP Crash Capturer Quick Fixes](./resources/static/usage-capturer-quick-fixes.png)
+
+> [!TIP]
+> FQBN mismatch warnings compare the capturer setup with the sketch/build configuration.
+> They do not verify the exact firmware currently flashed on the board from monitor output.
+> If things look out of sync, recompile, upload again, and sync the capturer target.
+
+The Capturer analyzes the serial monitor stream and groups repeated crash signatures. Each captured crash event can be previewed and decoded without manually copying stack traces. There is no need to stop capturing before compiling or uploading new firmware. Uploads are handled automatically, and a new crash event group is created for the newly flashed ELF. Previously recorded events can be cleared manually if desired.
+
+### Manual: Decoder Terminal (Legacy Workflow)
+
+This workflow is kept for compatibility and for users who already have copied crash output. It does not require a Capturer and works independently of the monitor integration.
+
+Use this if you already have copied crash text and want to decode it manually.
+
 1. Compile the sketch.
 2. Upload the sketch to the ESP8266/ESP32 board.
-3. Open the Monitor and wait for an exception.
-4. When an exception occurs, open the **ESP Exception Decoder terminal**:
-   - Open the _Command Palette_ using <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
+3. Open the serial monitor and wait for a crash (panic output or backtrace).
+4. When a crash occurs, open the **ESP Exception Decoder terminal**:
+   - Open the _Command Palette_ with <kbd>Ctrl/⌘</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>.
    - Run `ESP Exception Decoder: Show Decoder Terminal`.
-
 5. Paste the exception stack trace or backtrace into the decoder terminal.
-   > **ⓘ** For more details on copying and pasting in the terminal, see the VS Code documentation: https://code.visualstudio.com/docs/terminal/basics#copy-paste
+
+   ![ESP Exception Decoder Terminal](./resources/static/usage-terminal-manual.png)
+
+> [!TIP]
+> For terminal copy/paste details, see: https://code.visualstudio.com/docs/terminal/basics#_copy-paste
 
 ## Installation
 
 ### VS Code
 
-Install from the Visual Studio Code Marketplace.
+Install from the Visual Studio Code Marketplace (required for the 2.x release line).
 
 - ESP Exception Decoder: https://marketplace.visualstudio.com/items?itemName=dankeboy36.esp-exception-decoder
 

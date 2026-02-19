@@ -7,7 +7,7 @@ import {
 } from 'trbr'
 import type { BoardDetails, SketchFolder } from 'vscode-arduino-api'
 
-import { access } from './utils'
+import { findElfPath } from './findElfPath'
 
 export interface DecodeParams extends TrbrDecodeParams {
   fqbn: FQBN
@@ -19,9 +19,9 @@ const esp8266 = 'esp8266'
 const supportedArchitectures = new Set([esp32, esp8266])
 
 export async function createDecodeParams(
-  sketchFolder: SketchFolder
+  params: Pick<SketchFolder, 'compileSummary' | 'sketchPath' | 'board'>
 ): Promise<DecodeParams> {
-  const { compileSummary, sketchPath, board } = sketchFolder
+  const { compileSummary, sketchPath, board } = params
   if (!sketchPath) {
     throw new Error('Sketch path is not set')
   }
@@ -99,25 +99,8 @@ export class DecodeParamsError extends Error {
   }
 }
 
-async function findElfPath(
-  sketchFolderName: string,
-  buildPath: string
-): Promise<string | undefined> {
-  const [inoElfPath, cppElfPath] = await Promise.all(
-    ['ino', 'cpp'].map((ext) =>
-      access(path.join(buildPath, `${sketchFolderName}.${ext}.elf`))
-    )
-  )
-  return inoElfPath ?? cppElfPath ?? undefined
-}
-
 function isBoardDetails(board: SketchFolder['board']): board is BoardDetails {
   return (
     typeof board === 'object' && board !== null && 'buildProperties' in board
   )
 }
-
-/** (non-API) */
-export const __tests = {
-  findElfPath,
-} as const

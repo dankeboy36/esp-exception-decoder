@@ -15,6 +15,7 @@ import {
   DecodeParamsError,
   createDecodeParams,
 } from './decodeParams'
+import type { ReplayStore } from './replay'
 import { Debug } from './utils'
 
 const terminalDebug: Debug = debug('espExceptionDecoder:terminal')
@@ -34,7 +35,8 @@ function createDebugOutput(): Debug {
 
 export function activateDecoderTerminal(
   context: vscode.ExtensionContext,
-  arduinoContext: ArduinoContext
+  arduinoContext: ArduinoContext,
+  replayStore?: ReplayStore
 ): void {
   context.subscriptions.push(
     new vscode.Disposable(() => _debugOutput?.dispose()),
@@ -42,6 +44,7 @@ export function activateDecoderTerminal(
       openTerminal(arduinoContext, {
         show: true,
         debug: createDebugOutput(),
+        replayStore,
       })
     )
   )
@@ -49,14 +52,15 @@ export function activateDecoderTerminal(
 
 function openTerminal(
   arduinoContext: ArduinoContext,
-  options: { show: boolean; debug: Debug } = {
+  options: { show: boolean; debug: Debug; replayStore?: ReplayStore } = {
     show: true,
     debug: terminalDebug,
   }
 ): vscode.Terminal {
   const { debug, show } = options
   const terminal =
-    findDecodeTerminal() ?? createDecodeTerminal(arduinoContext, debug)
+    findDecodeTerminal() ??
+    createDecodeTerminal(arduinoContext, debug, options.replayStore)
   if (show) {
     terminal.show()
   }
@@ -72,9 +76,10 @@ function findDecodeTerminal(): vscode.Terminal | undefined {
 
 function createDecodeTerminal(
   arduinoContext: ArduinoContext,
-  debug: Debug
+  debug: Debug,
+  replayStore?: ReplayStore
 ): vscode.Terminal {
-  const pty = new DecoderTerminal(arduinoContext, debug)
+  const pty = new DecoderTerminal(arduinoContext, debug, replayStore)
   const options: vscode.ExtensionTerminalOptions = {
     name: decodeTerminalName,
     pty,
@@ -84,10 +89,10 @@ function createDecodeTerminal(
 }
 
 const decodeTerminalTitle = 'ESP Exception Decoder'
-const decodeTerminalName = 'Exception Decoder'
+const decodeTerminalName = 'Crash Decoder'
 const initializing = 'Initializing...'
 const busy = 'Decoding...'
-const idle = 'Paste exception to decode...'
+const idle = 'Paste crash to decode...'
 
 const relevantSketchChanges = new Set<keyof SketchFolder>([
   'board',
@@ -116,7 +121,8 @@ class DecoderTerminal implements vscode.Pseudoterminal {
 
   constructor(
     private readonly arduinoContext: ArduinoContext,
-    private readonly debug: Debug = terminalDebug
+    private readonly debug: Debug = terminalDebug,
+    private readonly replayStore?: ReplayStore
   ) {
     this.onDidWriteEmitter = new vscode.EventEmitter<string>()
     this.onDidCloseEmitter = new vscode.EventEmitter<number | void>()
@@ -192,6 +198,9 @@ class DecoderTerminal implements vscode.Pseudoterminal {
       this.abortController.abort()
       decoderResult = err instanceof Error ? err : new Error(String(err))
     }
+    if (!(decoderResult instanceof Error)) {
+      this.replayStore?.recordDecode(params, decoderResult)
+    }
     this.updateState({ decoderResult, statusMessage: idle })
   }
 
@@ -200,12 +209,13 @@ class DecoderTerminal implements vscode.Pseudoterminal {
     try {
       const resolvedSketch = this.resolveCurrentSketch(sketch)
       if (!resolvedSketch) {
-        throw new Error('Select a sketch folder to decode exceptions')
+        throw new Error('Select a sketch folder to decode crashes')
       }
       params = await createDecodeParams(resolvedSketch)
     } catch (err) {
       params = err instanceof Error ? err : new Error(String(err))
     }
+    this.replayStore?.clearIfParamsMismatch(params)
     this.updateState({ params })
   }
 
