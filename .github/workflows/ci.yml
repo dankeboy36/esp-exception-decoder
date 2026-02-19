@@ -65,6 +65,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Use Node.js
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
@@ -95,6 +96,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Use Node.js
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
@@ -133,7 +135,11 @@ jobs:
       - name: Ensure full git history and tags
         run: |
           set -euo pipefail
-          git fetch --force --tags --prune --unshallow || git fetch --force --tags --prune
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            git fetch --force --tags --prune --unshallow
+          else
+            git fetch --force --tags --prune
+          fi
           git fetch --force origin '+refs/heads/*:refs/remotes/origin/*'
           git rev-parse --is-shallow-repository
           git fsck --full
@@ -164,6 +170,7 @@ jobs:
         id: release
         run: npm run release
         env:
+          DEBUG: semantic-release:*,semantic-release-vsce:*
           GITHUB_TOKEN: ${{ steps.load_secrets.outputs.GITHUB_TOKEN }}
           VSCE_PAT: ${{ steps.load_secrets.outputs.VSCE_PAT }}
     outputs:
