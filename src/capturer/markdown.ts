@@ -38,6 +38,11 @@ interface EventReportMarkdownOptions {
   compact?: boolean
 }
 
+interface DecodedLocationSummary {
+  fileAndLine: string
+  method: string
+}
+
 export type DecodedStackFrame = DecodeResult['stacktraceLines'][number]
 
 export function toCapturerStateDumpMarkdown(
@@ -122,13 +127,7 @@ export function toEventTreeItemMarkdown(
 ): vscode.MarkdownString {
   const md = new vscode.MarkdownString(undefined, true)
   const lines: string[] = []
-  appendEventReportMarkdown(lines, runtime, event, {
-    headingLevel: 3,
-    headingText: `$(bug) ${markdownEscape(eventDisplayLabel(event))}`,
-    includeRuntimeSection: true,
-    includePayloadSections: false,
-    compact: true,
-  })
+  appendCompactEventTooltipMarkdown(lines, runtime, event)
   md.appendMarkdown(lines.join('\n'))
   md.appendMarkdown('\n----\n')
   md.appendMarkdown(`_Hold ${mouseOverModifierLabel()} key to mouse over_\n`)
@@ -438,6 +437,32 @@ function appendEventReportMarkdown(
   }
 }
 
+function appendCompactEventTooltipMarkdown(
+  lines: string[],
+  runtime: CapturerRuntime,
+  event: CapturerEventSummary
+): void {
+  const headingText = markdownEscape(eventDisplayLabel(event))
+  const crashSummary =
+    toCompactCrashSummary(event) ??
+    toSingleLine(event.reason) ??
+    'Unknown crash'
+  const location = resolveDecodedLocationSummaryParts(event.decodedResult)
+  const sketchName = path.basename(runtime.config.sketchPath) || 'unknown'
+  const buildSummary = runtime.elfIdentity?.sha256Short
+    ? `${toInlineCode(runtime.elfIdentity.sha256Short)} · ${toInlineCode(sketchName)}`
+    : toInlineCode(sketchName)
+
+  lines.push(`### $(bug) ${headingText}`)
+  lines.push(`- Crash: ${toInlineCode(crashSummary)}`)
+  lines.push(
+    location
+      ? `- Location: ${toInlineCode(location.fileAndLine)} in ${toInlineCode(location.method)}`
+      : '- Location: unknown (decode needed)'
+  )
+  lines.push(`- Build: ${buildSummary}`)
+}
+
 function toDecodedStacktraceText(
   event: CapturerEventSummary
 ): string | undefined {
@@ -496,20 +521,44 @@ function resolveDecodedExceptionSummary(
   )
 }
 
+function toCompactCrashSummary(
+  event: CapturerEventSummary
+): string | undefined {
+  const source =
+    toSingleLine(event.decodedResult?.faultInfo?.faultMessage) ??
+    toSingleLine(event.reason)
+  if (!source) {
+    return undefined
+  }
+  const firstSentenceEnd = source.indexOf('.')
+  const firstSentence =
+    firstSentenceEnd > 0 ? source.slice(0, firstSentenceEnd + 1) : source
+  return clampSingleLine(firstSentence.trim(), 96)
+}
+
 function resolveDecodedLocationSummary(
   decoded?: DecodeResult
 ): string | undefined {
+  const location = resolveDecodedLocationSummaryParts(decoded)
+  return location ? `${location.fileAndLine} in ${location.method}` : undefined
+}
+
+function resolveDecodedLocationSummaryParts(
+  decoded?: DecodeResult
+): DecodedLocationSummary | undefined {
   const firstParsed = collectDecodedStackFrames(decoded).find(isParsedGDBLine)
   if (firstParsed) {
-    return `${path.basename(firstParsed.file)}:${firstParsed.lineNumber} in ${formatFrameMethod(
-      firstParsed
-    )}`
+    return {
+      fileAndLine: `${path.basename(firstParsed.file)}:${firstParsed.lineNumber}`,
+      method: formatFrameMethod(firstParsed),
+    }
   }
   const pcLocation = decoded?.faultInfo?.programCounter?.location
   if (pcLocation && isParsedGDBLine(pcLocation)) {
-    return `${path.basename(pcLocation.file)}:${pcLocation.lineNumber} in ${formatFrameMethod(
-      pcLocation
-    )}`
+    return {
+      fileAndLine: `${path.basename(pcLocation.file)}:${pcLocation.lineNumber}`,
+      method: formatFrameMethod(pcLocation),
+    }
   }
   return undefined
 }
@@ -520,6 +569,13 @@ function toSingleLine(value: string | undefined): string | undefined {
   }
   const normalized = value.replace(/\s+/g, ' ').trim()
   return normalized.length > 0 ? normalized : undefined
+}
+
+function clampSingleLine(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value
+  }
+  return `${value.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`
 }
 
 function toStatusCodicon(status: string): string {

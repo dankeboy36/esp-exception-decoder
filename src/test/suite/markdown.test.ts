@@ -287,9 +287,36 @@ describe('markdown', () => {
     const runtime = createRuntime()
     const summary = createEvent()
     const markdown = toEventTreeItemMarkdown(runtime, summary).value
-    assert.equal(markdown.includes('#### Crash Summary'), true)
+    const tooltipContent = markdown.split('\n----\n')[0]
+    const tooltipLines = tooltipContent
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+
+    assert.equal(markdown.includes('#### Crash Summary'), false)
+    assert.equal(markdown.includes('#### Build Context'), false)
     assert.equal(markdown.includes('#### Captured Crash'), false)
-    assert.equal(markdown.includes('Decoded Exception'), true)
+    assert.equal(markdown.includes('Decoded Exception'), false)
+    assert.equal(markdown.includes('- Crash:'), true)
+    assert.equal(markdown.includes('- Location:'), true)
+    assert.equal(
+      markdown.includes('- Location: `main.ino:4` in `loop (a, b)`'),
+      true
+    )
+    assert.equal(markdown.includes('- Build:'), true)
+    assert.equal(markdown.includes('- Repeats:'), false)
+    assert.equal(markdown.includes('- Count:'), false)
+    assert.equal(tooltipLines.length <= 9, true)
+  })
+
+  it('renders compact tooltip fallback when location is unknown', () => {
+    const runtime = createRuntime()
+    const summary = createEvent({
+      decodedResult: undefined,
+      decodeState: 'detected',
+    })
+    const markdown = toEventTreeItemMarkdown(runtime, summary).value
+    assert.equal(markdown.includes('- Location: unknown (decode needed)'), true)
   })
 
   it('renders full event report markdown with payload and session details', () => {
