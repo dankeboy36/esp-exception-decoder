@@ -17,4 +17,5 @@ eslint.config.*
 .github/**
 release.config.js
 CHANGELOG.md
-.nyc_output
+.vscode-test.mjs
+coverage/**
